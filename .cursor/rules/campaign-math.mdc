@@ -1,0 +1,56 @@
+---
+description: "Business-critical campaign calculations: purity, formulas, assumptions, and change protocol"
+globs: ["packages/math-engine/**"]
+alwaysApply: false
+---
+
+# Campaign Math
+
+Treat campaign calculations as business-critical logic. Use the `campaign-calculation-change` skill for any formula change.
+
+## Purity and determinism
+
+Pure TypeScript. No side effects, no I/O, no `Date.now()`, no `Math.random()`, no randomness. Same inputs must always produce same outputs.
+
+Never add a model, heuristic, scoring function, or AI call. Status is rule precedence over named alerts, not a composite score.
+
+## Never silently change
+
+- turnout assumptions
+- win-number formulas
+- voter propensity definitions
+- voter universe definitions
+- support assumptions
+- persuasion assumptions
+- contact-rate assumptions
+- GOTV assumptions
+
+Before changing campaign math:
+
+1. identify the existing formula
+2. identify the assumptions
+3. identify downstream calculations
+4. provide a worked numerical example
+5. add regression tests
+
+## Registries and versioning
+
+`metricRegistry.ts` and `assumptionRegistry.ts` hold stable keys. Never use bare string keys at call sites.
+
+Formula IDs carry a version suffix (`victory.vote_goal.v0.2`). Behavior changes require a new formula ID and `MATH_ENGINE_VERSION` bump in `index.ts`.
+
+`calibration.ts` defines profile SHAPE only — no empirical values. Real estimates live in private `@wings/calibration-profiles`.
+
+NEVER hard-code a strategic cushion. Target share defaults to the mathematical 50% baseline.
+
+## Universe and capacity
+
+Strategic Desired, Reachable, and Capacity-Supported universes are distinct stages. Reachability gap and capacity gap are reported separately.
+
+Shared resource pools with explicit channel allocations. Two channels sharing a pool MUST NOT each see the full pool. See `docs/PROGRAM_BUDGET_CAPACITY_MODEL.md` before touching `programBudget.ts` or `capacity.ts`.
+
+## Tests
+
+Tests are `.cjs` files under `tests/`. Every new formula gets a unit test. Fixtures use invented round numbers, never plausible real-world ones. Test normal, zero, boundary, and missing values.
+
+Keep shared calculations centralized. Do not duplicate campaign math across components.

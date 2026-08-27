@@ -1,0 +1,32 @@
+---
+description: "Branching, staging, commit gates, and what the agent may not do on its own"
+alwaysApply: true
+---
+
+# Git Workflow
+
+Full process: `CONTRIBUTING.md`.
+
+Do not commit, push, merge, deploy, or modify production unless explicitly instructed.
+
+## Branch and staging
+
+- NEVER commit or push to `main`. Work on a branch, merge through a pull request.
+- NEVER run `git add -A` or `git add .`. Stage named paths only.
+- NEVER run `git push`, `git merge`, `git rebase`, `git reset --hard`, or any force-push. Propose the command and let the human run it.
+- One change per branch. If you notice an unrelated problem, name it and leave it alone.
+
+## Before committing
+
+- inspect git status
+- inspect the complete diff
+- confirm tests pass (`npm test`)
+- confirm the production build succeeds (`npm run build`)
+- check for secrets
+- check for debugging code
+- check for unrelated changes
+
+## Agent constraints
+
+- Do not modify `.gitignore`, `package.json`, CI workflows, or `.cursor/rules/` unless that is the task. If a change requires it, say so first.
+- Before editing, state intended changes and affected files.

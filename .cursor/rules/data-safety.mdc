@@ -1,0 +1,48 @@
+---
+description: "Data classification, Airtable schema safety, environment boundaries, and secrets"
+globs: ["**/tests/**", "**/fixtures/**", "docs/**", "netlify/**", "apps/web/src/storage/**"]
+alwaysApply: false
+---
+
+# Data Safety
+
+This repository is public. Git history is permanent. Full rules: `docs/DATA_CLASSIFICATION.md`.
+
+## The rule
+
+Formulas are public. Numbers derived from real campaigns are not.
+
+NEVER invent empirical values that look like real campaign data. Fixtures use obviously synthetic round numbers (turnout 0.5, universe 10,000). Real values live in private `@wings/calibration-profiles`.
+
+## Never commit
+
+- Calibration values, restricted research, client or campaign data
+- Campaign, candidate, district, staff, or vendor names
+- Credentials, `.env` files, API keys
+- `.csv`, `.xlsx`, `.parquet`, or bulk data files
+
+Run `npm run check:classification` before finishing.
+
+## Airtable
+
+Before changing Airtable-dependent code:
+
+- inspect the actual schema via Airtable MCP (`plugin-airtable-airtable`)
+- never guess table names
+- never guess field names
+- identify dependent code
+- handle missing and null values
+
+Do not delete, rename, or change field types without explicit approval. Prefer additive schema changes.
+
+Use the `airtable-schema-change` skill for schema or sync work.
+
+## Environment safety
+
+Development and preview environments must be safe by default.
+
+Do not perform unintended production writes during development or testing.
+
+Do not expose secrets in code, logs, screenshots, commits, or documentation.
+
+Never commit `.env` files containing secrets. Netlify deploy contexts set `VITE_WINGS_DATA_MODE` per `netlify.toml` — verify context before any backend data integration.
