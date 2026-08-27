@@ -9,7 +9,8 @@ const {
   calculateRaceThreshold,
   calculateSupportIdObjective,
   capacitySupportedUniverse,
-  constructStrategicUniverse
+  constructStrategicUniverse,
+  deriveWinningPathStatus
 } = require('../dist');
 
 test('generic weighted electorate segments calculate expected electorate', () => {
@@ -105,14 +106,26 @@ test('capacity calculates the minimum additional shifts required to close a shor
   assert.equal(result.value?.additionalScheduledShiftsRequired, 25);
 });
 
-test('winning path status is deterministic and not a composite score', () => {
-  const { deriveWinningPathStatus } = require('../dist');
+test('winning path status is deterministic and exposes rule IDs', () => {
   assert.equal(deriveWinningPathStatus([]).status, 'ON_TRACK');
-  assert.equal(deriveWinningPathStatus([{ code: 'PACE', severity: 'WATCH', message: 'Pace below plan' }]).status, 'WATCH');
+  const watch = deriveWinningPathStatus([{ code: 'PACE', ruleId: 'pace.field.watch', severity: 'WATCH', message: 'Pace below plan' }]);
+  assert.equal(watch.status, 'WATCH');
+  assert.deepEqual(watch.triggeringRuleIds, ['pace.field.watch']);
+
   const atRisk = deriveWinningPathStatus([
-    { code: 'PACE', severity: 'WATCH', message: 'Pace below plan' },
-    { code: 'CAPACITY', severity: 'AT_RISK', message: 'Capacity cannot complete adopted work' }
+    { code: 'PACE', ruleId: 'pace.field.watch', severity: 'WATCH', message: 'Pace below plan' },
+    { code: 'CAPACITY', ruleId: 'capacity.field.at-risk', severity: 'AT_RISK', message: 'Capacity cannot complete adopted work' }
   ]);
   assert.equal(atRisk.status, 'AT_RISK');
   assert.equal(atRisk.triggeringAlerts.length, 2);
+  assert.deepEqual(atRisk.triggeringRuleIds, ['pace.field.watch', 'capacity.field.at-risk']);
+});
+
+test('winning path is unavailable when required inputs are missing', () => {
+  const result = deriveWinningPathStatus({
+    activeAlerts: [],
+    missingRequiredInputs: ['pacing.remaining_active_days', 'actuals.completed_attempts']
+  });
+  assert.equal(result.status, 'UNAVAILABLE');
+  assert.deepEqual(result.missingRequiredInputs, ['pacing.remaining_active_days', 'actuals.completed_attempts']);
 });
