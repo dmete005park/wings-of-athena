@@ -34,6 +34,7 @@ export interface ChannelFeasibilityResult {
   additionalScheduledShiftsRequired?: number;
   additionalWorkersRequired: number;
   additionalCompletedShiftsPerActiveDay?: number;
+  additionalScheduledShiftsPerActiveDay?: number;
   incrementalCost?: number;
 }
 
@@ -169,6 +170,9 @@ export function calculateProgramBudgetFeasibility(
     }
     if (input.remainingActiveDays !== undefined) {
       result.additionalCompletedShiftsPerActiveDay = additionalCompletedShiftsRequired / input.remainingActiveDays;
+      if (capacity.additionalScheduledShiftsRequired !== undefined) {
+        result.additionalScheduledShiftsPerActiveDay = capacity.additionalScheduledShiftsRequired / input.remainingActiveDays;
+      }
     }
     if (channel.costPerCompletedShift !== undefined) {
       result.incrementalCost = additionalCompletedShiftsRequired * channel.costPerCompletedShift;

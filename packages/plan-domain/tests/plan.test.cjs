@@ -4,9 +4,17 @@ const {
   adoptPlanRecord,
   assertDraftMutable,
   assertStoredPlanReplaceable,
+  buildPlanVersionRecord,
+  computeFeasibilityGapFingerprint,
   computeInputHash,
   createReforecastDraftRecord,
 } = require('../dist');
+
+const completeSections = [
+  { sectionKey: 'campaign_setup', requiredForAdoption: true, status: 'COMPLETE', missingKeys: [] },
+  { sectionKey: 'path_to_victory', requiredForAdoption: true, status: 'COMPLETE', missingKeys: [] },
+  { sectionKey: 'program_budget', requiredForAdoption: true, status: 'COMPLETE', missingKeys: [] },
+];
 
 function basePlan(overrides = {}) {
   const inputs = overrides.inputs ?? { electorate: 1000, targetShare: 0.51 };
@@ -35,6 +43,7 @@ function basePlan(overrides = {}) {
     evidenceRefs: [],
     feasibilityGaps: [],
     feasibilityAcknowledgments: [],
+    sectionStatuses: completeSections,
     createdAt: '2026-08-27T00:00:00Z',
     createdBy: 'user-1',
     adoptedAt: null,
@@ -47,10 +56,80 @@ function adoptionMeta(plan, expectedInputHash = plan.inputHash) {
   return { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z', expectedInputHash };
 }
 
+function capacityGap(overrides = {}) {
+  return {
+    gapId: 'capacity-universe-gap',
+    constraintType: 'CAPACITY',
+    strategicMetricKey: 'universe.reachable',
+    strategicValue: 30100,
+    operationalMetricKey: 'universe.capacity_supported',
+    operationalValue: 26800,
+    gap: 3300,
+    requiresAcknowledgment: true,
+    ...overrides,
+  };
+}
+
+function acknowledgmentFor(gap, overrides = {}) {
+  return {
+    acknowledgmentId: 'ack-1',
+    gapId: gap.gapId,
+    gapFingerprint: computeFeasibilityGapFingerprint(gap),
+    constraintType: gap.constraintType,
+    strategicMetricKey: gap.strategicMetricKey,
+    strategicValue: gap.strategicValue,
+    operationalMetricKey: gap.operationalMetricKey,
+    operationalValue: gap.operationalValue,
+    gap: gap.gap,
+    reason: 'Current staffing cannot close the remaining capacity gap within the program window.',
+    actorId: 'manager-1',
+    acknowledgedAt: '2026-08-27T11:55:00Z',
+    ...overrides,
+  };
+}
+
 test('input hash is stable across object key ordering', () => {
   const a = computeInputHash({ electorate: 1000, nested: { b: 2, a: 1 } });
   const b = computeInputHash({ nested: { a: 1, b: 2 }, electorate: 1000 });
   assert.equal(a, b);
+});
+
+test('plan builder serializes incomplete drafts and reports exact missing required keys', () => {
+  const source = basePlan();
+  const { inputHash, sectionStatuses, calculations, ...draft } = source;
+  const build = buildPlanVersionRecord(
+    {
+      ...draft,
+      calculations: calculations.map(({ inputHash: _snapshotHash, ...snapshot }) => snapshot),
+    },
+    [
+      completeSections[0],
+      completeSections[1],
+      { sectionKey: 'program_budget', requiredForAdoption: true, status: 'INCOMPLETE', missingKeys: ['resourcePools', 'channelAllocations'] },
+    ],
+  );
+
+  assert.match(build.record.inputHash, /^fnv1a32:/);
+  assert.equal(build.readyForAdoption, false);
+  assert.deepEqual(build.missingRequiredKeys, [
+    'program_budget.resourcePools',
+    'program_budget.channelAllocations',
+  ]);
+  assert.ok(build.record.calculations.every((snapshot) => snapshot.inputHash === build.record.inputHash));
+});
+
+test('adoption refuses an incomplete required section with a specific error', () => {
+  const plan = basePlan({
+    sectionStatuses: [
+      completeSections[0],
+      completeSections[1],
+      { sectionKey: 'program_budget', requiredForAdoption: true, status: 'INCOMPLETE', missingKeys: ['resourcePools'] },
+    ],
+  });
+  assert.throws(
+    () => adoptPlanRecord(plan, adoptionMeta(plan)),
+    /PLAN_SECTION_INCOMPLETE:program_budget:resourcePools/,
+  );
 });
 
 test('adoption stores adoption metadata when snapshots and reviewed inputs are fresh', () => {
@@ -80,54 +159,54 @@ test('adoption refuses a stale calculation snapshot even with a current top-leve
 });
 
 test('material feasibility gap requires explicit acknowledgment', () => {
-  const plan = basePlan({
-    feasibilityGaps: [{
-      gapId: 'capacity-universe-gap',
-      constraintType: 'CAPACITY',
-      strategicMetricKey: 'universe.desired',
-      strategicValue: 1600,
-      operationalMetricKey: 'universe.capacity_supported',
-      operationalValue: 1200,
-      gap: 400,
-      requiresAcknowledgment: true,
-    }],
-  });
+  const gap = capacityGap();
+  const plan = basePlan({ feasibilityGaps: [gap] });
   assert.throws(() => adoptPlanRecord(plan, adoptionMeta(plan)), /FEASIBILITY_ACK_REQUIRED:capacity-universe-gap/);
 });
 
-test('acknowledged feasibility gap preserves decision reason and exact constraint snapshot', () => {
+test('gap change invalidates an earlier acknowledgment', () => {
+  const originalGap = capacityGap();
+  const changedGap = capacityGap({ operationalValue: 24100, gap: 6000 });
   const plan = basePlan({
-    feasibilityGaps: [{
-      gapId: 'capacity-universe-gap',
-      constraintType: 'CAPACITY',
-      strategicMetricKey: 'universe.desired',
-      strategicValue: 1600,
-      operationalMetricKey: 'universe.capacity_supported',
-      operationalValue: 1200,
-      gap: 400,
-      requiresAcknowledgment: true,
-    }],
-    feasibilityAcknowledgments: [{
-      acknowledgmentId: 'ack-1',
-      gapId: 'capacity-universe-gap',
-      constraintType: 'CAPACITY',
-      strategicMetricKey: 'universe.desired',
-      strategicValue: 1600,
-      operationalMetricKey: 'universe.capacity_supported',
-      operationalValue: 1200,
-      gap: 400,
-      reason: 'Current staffing supports a smaller operational universe.',
-      actorId: 'manager-1',
-      acknowledgedAt: '2026-08-27T11:55:00Z',
-    }],
+    feasibilityGaps: [changedGap],
+    feasibilityAcknowledgments: [acknowledgmentFor(originalGap)],
+  });
+  assert.throws(
+    () => adoptPlanRecord(plan, adoptionMeta(plan)),
+    /FEASIBILITY_ACK_STALE:capacity-universe-gap/,
+  );
+});
+
+test('fresh acknowledged feasibility gap preserves reason and exact decision snapshot', () => {
+  const gap = capacityGap();
+  const acknowledgment = acknowledgmentFor(gap);
+  const plan = basePlan({
+    feasibilityGaps: [gap],
+    feasibilityAcknowledgments: [acknowledgment],
   });
   const adopted = adoptPlanRecord(plan, adoptionMeta(plan));
-  const ack = adopted.feasibilityAcknowledgments[0];
-  assert.equal(ack.constraintType, 'CAPACITY');
-  assert.equal(ack.strategicValue, 1600);
-  assert.equal(ack.operationalValue, 1200);
-  assert.equal(ack.gap, 400);
-  assert.match(ack.reason, /staffing/);
+  assert.equal(adopted.feasibilityAcknowledgments[0].gapFingerprint, computeFeasibilityGapFingerprint(gap));
+  assert.equal(adopted.feasibilityAcknowledgments[0].gap, 3300);
+  assert.equal(adopted.feasibilityAcknowledgments[0].reason, acknowledgment.reason);
+});
+
+test('allocation conflict is a first-class feasibility constraint', () => {
+  const gap = {
+    ...capacityGap(),
+    gapId: 'shared-pool-allocation-gap',
+    constraintType: 'ALLOCATION',
+    strategicMetricKey: 'capacity.pool.available_completed_shifts',
+    strategicValue: 40,
+    operationalMetricKey: 'capacity.pool.allocated_completed_shifts',
+    operationalValue: 50,
+    gap: 10,
+  };
+  const plan = basePlan({
+    feasibilityGaps: [gap],
+    feasibilityAcknowledgments: [acknowledgmentFor(gap, { reason: 'Manager accepts the temporary cross-channel allocation conflict.' })],
+  });
+  const adopted = adoptPlanRecord(plan, adoptionMeta(plan));
+  assert.equal(adopted.feasibilityAcknowledgments[0].constraintType, 'ALLOCATION');
 });
 
 test('adopted plan cannot be treated as mutable draft', () => {
