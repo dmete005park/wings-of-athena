@@ -5,14 +5,18 @@ export interface WinningPathStatusInput {
   missingRequiredInputs?: readonly string[];
 }
 
+function isAlertArray(input: WinningPathStatusInput | readonly DecisionAlert[]): input is readonly DecisionAlert[] {
+  return Array.isArray(input);
+}
+
 /**
  * Deterministic manager-facing status. This is intentionally not a score.
  * Missing required inputs make status unavailable rather than optimistically ON_TRACK.
  * Any active AT_RISK alert dominates WATCH; any WATCH dominates ON_TRACK.
  */
 export function deriveWinningPathStatus(input: WinningPathStatusInput | readonly DecisionAlert[]): WinningPathStatusResult {
-  const activeAlerts = Array.isArray(input) ? input : input.activeAlerts;
-  const missingRequiredInputs = Array.isArray(input) ? [] : [...(input.missingRequiredInputs ?? [])];
+  const activeAlerts: readonly DecisionAlert[] = isAlertArray(input) ? input : input.activeAlerts;
+  const missingRequiredInputs = isAlertArray(input) ? [] : [...(input.missingRequiredInputs ?? [])];
   const triggeringRuleIds = activeAlerts
     .map((alert) => alert.ruleId ?? alert.code)
     .filter((value, index, values) => values.indexOf(value) === index);
