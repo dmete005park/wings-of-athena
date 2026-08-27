@@ -97,7 +97,8 @@ export interface PlanVersionRecord {
   evidenceRefs: EvidenceLink[];
   feasibilityGaps: FeasibilityGapRecord[];
   feasibilityAcknowledgments: FeasibilityAcknowledgment[];
-  sectionStatuses: PlanSectionStatus[];
+  /** Transitional optionality for pre-builder drafts. Adoption treats absence as incomplete. */
+  sectionStatuses?: PlanSectionStatus[];
   createdAt: string;
   createdBy: string;
   adoptedAt: string | null;
