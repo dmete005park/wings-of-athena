@@ -2,10 +2,7 @@
   "name": "wings-of-athena",
   "private": true,
   "version": "0.0.1",
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
+  "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "build": "npm run build -w @wings/math-engine && npm run build -w @wings/plan-domain && npm run build -w @wings/web",
     "prepare": "git config core.hooksPath .githooks || exit 0",
