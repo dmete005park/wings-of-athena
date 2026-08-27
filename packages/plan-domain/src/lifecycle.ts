@@ -1,5 +1,13 @@
 import { PlanAdoptionError } from './errors';
-import { AdoptionMetadata, FeasibilityAcknowledgment, FeasibilityGapRecord, PlanVersionRecord } from './types';
+import {
+  AdoptionBlocker,
+  AdoptionMetadata,
+  AdoptionReadiness,
+  FeasibilityAcknowledgment,
+  FeasibilityGapRecord,
+  PlanVersionRecord,
+  RecalculationReason,
+} from './types';
 import { computeFeasibilityGapFingerprint, computeInputHash } from './hash';
 
 export function isAdoptedStatus(status: PlanVersionRecord['status']): boolean {
@@ -7,15 +15,11 @@ export function isAdoptedStatus(status: PlanVersionRecord['status']): boolean {
 }
 
 export function assertDraftMutable(plan: PlanVersionRecord): void {
-  if (isAdoptedStatus(plan.status)) {
-    throw new Error('ADOPTED_PLAN_IMMUTABLE');
-  }
+  if (isAdoptedStatus(plan.status)) throw new Error('ADOPTED_PLAN_IMMUTABLE');
 }
 
 export function assertStoredPlanReplaceable(existing: PlanVersionRecord | undefined): void {
-  if (existing && isAdoptedStatus(existing.status)) {
-    throw new Error('ADOPTED_PLAN_IMMUTABLE');
-  }
+  if (existing && isAdoptedStatus(existing.status)) throw new Error('ADOPTED_PLAN_IMMUTABLE');
 }
 
 export function withCanonicalInputHash(plan: PlanVersionRecord): PlanVersionRecord {
@@ -45,56 +49,76 @@ function gapSnapshotFromAcknowledgment(ack: FeasibilityAcknowledgment): Feasibil
   };
 }
 
-export function assertPlanReadyForAdoption(plan: PlanVersionRecord, expectedInputHash?: string): void {
-  if (!plan.sectionStatuses) {
-    throw new PlanAdoptionError('PLAN_SECTION_INCOMPLETE', {
-      sectionKey: 'plan',
-      missingKeys: ['sectionStatuses'],
-    });
-  }
+export function evaluatePlanAdoptionReadiness(
+  plan: PlanVersionRecord,
+  expectedInputHash?: string,
+): AdoptionReadiness {
+  const blockers: AdoptionBlocker[] = [];
 
-  const incompleteSection = plan.sectionStatuses.find(
-    (section) => section.requiredForAdoption && section.status !== 'COMPLETE',
-  );
-  if (incompleteSection) {
-    throw new PlanAdoptionError('PLAN_SECTION_INCOMPLETE', {
-      sectionKey: incompleteSection.sectionKey,
-      missingKeys: [...incompleteSection.missingKeys],
+  if (!plan.sectionStatuses) {
+    blockers.push({
+      code: 'PLAN_SECTION_INCOMPLETE',
+      context: { sectionKey: 'plan', missingKeys: ['sectionStatuses'] },
     });
+  } else {
+    for (const section of plan.sectionStatuses.filter(
+      (item) => item.requiredForAdoption && item.status !== 'COMPLETE',
+    )) {
+      blockers.push({
+        code: 'PLAN_SECTION_INCOMPLETE',
+        context: { sectionKey: section.sectionKey, missingKeys: [...section.missingKeys] },
+      });
+    }
   }
 
   const currentInputHash = computeInputHash(plan.inputs);
-  if (!plan.inputHash || plan.inputHash !== currentInputHash) {
-    throw new PlanAdoptionError('PLAN_RECALC_REQUIRED');
+  const recalculationReasons: RecalculationReason[] = [];
+  if (!plan.inputHash || plan.inputHash !== currentInputHash) recalculationReasons.push('INPUT_HASH_MISMATCH');
+  if (expectedInputHash !== undefined && expectedInputHash !== plan.inputHash) recalculationReasons.push('REVIEWED_HASH_MISMATCH');
+  if (plan.calculations.some((snapshot) => snapshot.inputHash !== currentInputHash)) {
+    recalculationReasons.push('STALE_CALCULATION_SNAPSHOT');
   }
-
-  if (expectedInputHash !== undefined && expectedInputHash !== plan.inputHash) {
-    throw new PlanAdoptionError('PLAN_RECALC_REQUIRED');
-  }
-
-  const staleSnapshot = plan.calculations.some((snapshot) => snapshot.inputHash !== currentInputHash);
-  if (staleSnapshot) {
-    throw new PlanAdoptionError('PLAN_RECALC_REQUIRED');
+  if (recalculationReasons.length > 0) {
+    blockers.push({
+      code: 'PLAN_RECALC_REQUIRED',
+      context: { recalculationReasons },
+    });
   }
 
   for (const gap of plan.feasibilityGaps.filter((item) => item.requiresAcknowledgment)) {
     const acknowledgment = plan.feasibilityAcknowledgments.find((ack) => ack.gapId === gap.gapId);
     if (!acknowledgment) {
-      throw new PlanAdoptionError('FEASIBILITY_ACK_REQUIRED', {
-        sectionKey: 'program_budget',
-        gapId: gap.gapId,
-        currentGap: { ...gap },
+      blockers.push({
+        code: 'FEASIBILITY_ACK_REQUIRED',
+        context: {
+          sectionKey: 'program_budget',
+          gapId: gap.gapId,
+          currentGap: { ...gap },
+        },
       });
+      continue;
     }
     if (!acknowledgmentMatchesGap(acknowledgment, gap)) {
-      throw new PlanAdoptionError('FEASIBILITY_ACK_STALE', {
-        sectionKey: 'program_budget',
-        gapId: gap.gapId,
-        previousGap: gapSnapshotFromAcknowledgment(acknowledgment),
-        currentGap: { ...gap },
+      blockers.push({
+        code: 'FEASIBILITY_ACK_STALE',
+        context: {
+          sectionKey: 'program_budget',
+          gapId: gap.gapId,
+          previousGap: gapSnapshotFromAcknowledgment(acknowledgment),
+          currentGap: { ...gap },
+        },
       });
     }
   }
+
+  return { ready: blockers.length === 0, blockers };
+}
+
+export function assertPlanReadyForAdoption(plan: PlanVersionRecord, expectedInputHash?: string): void {
+  const readiness = evaluatePlanAdoptionReadiness(plan, expectedInputHash);
+  if (readiness.ready) return;
+  const first = readiness.blockers[0];
+  throw new PlanAdoptionError(first.code, first.context);
 }
 
 export function adoptPlanRecord(plan: PlanVersionRecord, metadata: AdoptionMetadata): PlanVersionRecord {
@@ -113,12 +137,8 @@ export function createReforecastDraftRecord(
   parent: PlanVersionRecord,
   draft: PlanVersionRecord,
 ): PlanVersionRecord {
-  if (!isAdoptedStatus(parent.status)) {
-    throw new Error('REFORECAST_PARENT_MUST_BE_ADOPTED');
-  }
-  if (draft.planVersionId === parent.planVersionId) {
-    throw new Error('REFORECAST_REQUIRES_NEW_PLAN_VERSION_ID');
-  }
+  if (!isAdoptedStatus(parent.status)) throw new Error('REFORECAST_PARENT_MUST_BE_ADOPTED');
+  if (draft.planVersionId === parent.planVersionId) throw new Error('REFORECAST_REQUIRES_NEW_PLAN_VERSION_ID');
   return withCanonicalInputHash({
     ...draft,
     campaignId: parent.campaignId,
