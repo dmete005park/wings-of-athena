@@ -21,9 +21,13 @@ export function withCanonicalInputHash(plan: PlanVersionRecord): PlanVersionReco
   return { ...plan, inputHash: computeInputHash(plan.inputs) };
 }
 
-export function assertPlanReadyForAdoption(plan: PlanVersionRecord): void {
+export function assertPlanReadyForAdoption(plan: PlanVersionRecord, expectedInputHash?: string): void {
   const currentInputHash = computeInputHash(plan.inputs);
   if (!plan.inputHash || plan.inputHash !== currentInputHash) {
+    throw new Error('PLAN_RECALC_REQUIRED');
+  }
+
+  if (expectedInputHash !== undefined && expectedInputHash !== plan.inputHash) {
     throw new Error('PLAN_RECALC_REQUIRED');
   }
 
@@ -43,7 +47,7 @@ export function assertPlanReadyForAdoption(plan: PlanVersionRecord): void {
 
 export function adoptPlanRecord(plan: PlanVersionRecord, metadata: AdoptionMetadata): PlanVersionRecord {
   if (isAdoptedStatus(plan.status)) return plan;
-  assertPlanReadyForAdoption(plan);
+  assertPlanReadyForAdoption(plan, metadata.expectedInputHash);
   const nextStatus = plan.status === 'REFORECAST_DRAFT' ? 'ADOPTED_REFORECAST' : 'ADOPTED';
   return {
     ...plan,

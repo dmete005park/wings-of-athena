@@ -43,35 +43,40 @@ function basePlan(overrides = {}) {
   };
 }
 
+function adoptionMeta(plan, expectedInputHash = plan.inputHash) {
+  return { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z', expectedInputHash };
+}
+
 test('input hash is stable across object key ordering', () => {
   const a = computeInputHash({ electorate: 1000, nested: { b: 2, a: 1 } });
   const b = computeInputHash({ nested: { a: 1, b: 2 }, electorate: 1000 });
   assert.equal(a, b);
 });
 
-test('adoption stores adoption metadata when snapshots are fresh', () => {
-  const adopted = adoptPlanRecord(basePlan(), { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' });
+test('adoption stores adoption metadata when snapshots and reviewed inputs are fresh', () => {
+  const plan = basePlan();
+  const adopted = adoptPlanRecord(plan, adoptionMeta(plan));
   assert.equal(adopted.status, 'ADOPTED');
   assert.equal(adopted.adoptedBy, 'manager-1');
   assert.match(adopted.inputHash, /^fnv1a32:/);
 });
 
+test('adoption refuses when manager reviewed a different input fingerprint', () => {
+  const plan = basePlan();
+  const differentHash = computeInputHash({ electorate: 1000, targetShare: 0.53 });
+  assert.throws(() => adoptPlanRecord(plan, adoptionMeta(plan, differentHash)), /PLAN_RECALC_REQUIRED/);
+});
+
 test('adoption refuses a draft changed after calculation', () => {
   const plan = basePlan();
   plan.inputs = { electorate: 1000, targetShare: 0.53 };
-  assert.throws(
-    () => adoptPlanRecord(plan, { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' }),
-    /PLAN_RECALC_REQUIRED/,
-  );
+  assert.throws(() => adoptPlanRecord(plan, adoptionMeta(plan)), /PLAN_RECALC_REQUIRED/);
 });
 
 test('adoption refuses a stale calculation snapshot even with a current top-level hash', () => {
   const plan = basePlan({ inputs: { electorate: 1000, targetShare: 0.53 } });
   plan.calculations[0].inputHash = computeInputHash({ electorate: 1000, targetShare: 0.51 });
-  assert.throws(
-    () => adoptPlanRecord(plan, { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' }),
-    /PLAN_RECALC_REQUIRED/,
-  );
+  assert.throws(() => adoptPlanRecord(plan, adoptionMeta(plan)), /PLAN_RECALC_REQUIRED/);
 });
 
 test('material feasibility gap requires explicit acknowledgment', () => {
@@ -87,10 +92,7 @@ test('material feasibility gap requires explicit acknowledgment', () => {
       requiresAcknowledgment: true,
     }],
   });
-  assert.throws(
-    () => adoptPlanRecord(plan, { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' }),
-    /FEASIBILITY_ACK_REQUIRED:capacity-universe-gap/,
-  );
+  assert.throws(() => adoptPlanRecord(plan, adoptionMeta(plan)), /FEASIBILITY_ACK_REQUIRED:capacity-universe-gap/);
 });
 
 test('acknowledged feasibility gap preserves strategic and operational values', () => {
@@ -113,24 +115,27 @@ test('acknowledged feasibility gap preserves strategic and operational values', 
       acknowledgedAt: '2026-08-27T11:55:00Z',
     }],
   });
-  const adopted = adoptPlanRecord(plan, { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' });
+  const adopted = adoptPlanRecord(plan, adoptionMeta(plan));
   assert.equal(adopted.feasibilityGaps[0].strategicValue, 1600);
   assert.equal(adopted.feasibilityGaps[0].operationalValue, 1200);
   assert.equal(adopted.feasibilityAcknowledgments.length, 1);
 });
 
 test('adopted plan cannot be treated as mutable draft', () => {
-  const adopted = adoptPlanRecord(basePlan(), { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' });
+  const plan = basePlan();
+  const adopted = adoptPlanRecord(plan, adoptionMeta(plan));
   assert.throws(() => assertDraftMutable(adopted), /ADOPTED_PLAN_IMMUTABLE/);
 });
 
 test('stored adopted plan cannot be overwritten by a new draft object with the same id', () => {
-  const adopted = adoptPlanRecord(basePlan(), { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' });
+  const plan = basePlan();
+  const adopted = adoptPlanRecord(plan, adoptionMeta(plan));
   assert.throws(() => assertStoredPlanReplaceable(adopted), /ADOPTED_PLAN_IMMUTABLE/);
 });
 
 test('reforecast is a new child version and preserves adopted parent', () => {
-  const parent = adoptPlanRecord(basePlan(), { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' });
+  const plan = basePlan();
+  const parent = adoptPlanRecord(plan, adoptionMeta(plan));
   const child = createReforecastDraftRecord(parent, basePlan({ planVersionId: 'plan-2', inputs: { electorate: 980, targetShare: 0.51 } }));
   assert.equal(parent.status, 'ADOPTED');
   assert.equal(child.status, 'REFORECAST_DRAFT');
@@ -139,6 +144,7 @@ test('reforecast is a new child version and preserves adopted parent', () => {
 });
 
 test('reforecast requires a new version id', () => {
-  const parent = adoptPlanRecord(basePlan(), { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' });
+  const plan = basePlan();
+  const parent = adoptPlanRecord(plan, adoptionMeta(plan));
   assert.throws(() => createReforecastDraftRecord(parent, basePlan()), /REFORECAST_REQUIRES_NEW_PLAN_VERSION_ID/);
 });
