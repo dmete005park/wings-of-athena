@@ -1,38 +1,82 @@
 # Wings of Athena
 
-Wings of Athena is a campaign manager decision layer built around deterministic planning math, explainable assumptions, actual-vs-plan measurement, and reforecasting.
+Wings of Athena is a campaign-manager decision layer built around deterministic planning math, explicit assumptions, feasibility constraints, actual-vs-plan measurement, and reforecasting.
 
-The MVP is intentionally not a replacement for voter contact, fundraising CRM, compliance, communications, or volunteer-management systems. Those systems supply execution data. Wings owns the campaign plan, feasibility math, pacing, variance, and the living path to victory.
+It is not intended to replace voter contact, fundraising CRM, compliance, communications, event registration, or volunteer-management systems. Those systems execute work. Wings owns the campaign plan, the math behind it, the constraints on it, and the record of what the manager adopted.
 
-## Sprint 0
+## Current implementation
 
-The first implementation is the standalone `@wings/math-engine` TypeScript package. It has no dependency on React, Netlify, a database, file imports, or external APIs.
+The repository currently includes:
 
-Implemented so far:
+- `@wings/math-engine`, a pure TypeScript deterministic math package
+- `@wings/plan-domain`, which owns plan versions, fingerprints, section completeness, feasibility acknowledgments, adoption, and reforecast lineage
+- a React/Vite web app with Campaign Setup, Path to Victory, Program & Budget, and Adopt Plan
+- shared campaign resource pools with explicit channel allocations
+- separate reachability, capacity, cost, and allocation constraints
+- fingerprint-bound feasibility acknowledgments with stale-acknowledgment detection
+- objective-aware section completeness, including optional Support IDs
+- multiple scenario plan versions per campaign
+- local-browser plan storage for the current pre-database MVP
+- a public/private calibration boundary with no empirical calibration values committed to this repository
+- repository classification checks in CI
 
-- generic electorate-segment turnout math
-- majority, plurality, and runoff race rules
-- campaign vote-goal math without a hard-coded strategic cushion
-- strategic universe construction separated from availability, reachability, and capacity
-- unique reach + contact depth outreach math
-- optional Support-ID objective math
-- capacity, staffing, pacing, and remediation math
-- deterministic `ON_TRACK` / `WATCH` / `AT_RISK` status from named rules
-- stable metric and assumption registries
-- evidence classes and validation helpers
-- frozen engine tests
+Command Center and Reforecast UI are not implemented yet.
+
+## Product flow
+
+`Campaign Setup → Path to Victory → Program & Budget → Adopt Plan → Command Center → Reforecast`
+
+The current executable web flow reaches Adopt Plan. Adoption requires all required sections to be complete, calculation snapshots to match the current canonical input fingerprint, the manager-reviewed fingerprint to match the saved plan, and every material feasibility gap to have a current acknowledgment when acknowledgment is required.
+
+## Planning principles
+
+- Formulas are deterministic and auditable.
+- Strategic Desired Universe is preserved separately from reachable and capacity-supported universes.
+- Unique reach and contact depth are distinct.
+- Shared workers cannot be independently counted by multiple channels.
+- Missing required data is surfaced as missing; Wings does not silently invent a healthy default.
+- Reachability, capacity, cost, and allocation are different constraint types because their remedies differ.
+- Manager acknowledgments are bound to the exact gap snapshot accepted at the time.
+- Adopted plan versions are immutable. Reforecasting creates a new child version.
+
+## Public/private boundary
+
+This repository is public. Formula implementations, types, validation rules, lifecycle contracts, and synthetic fixtures may be committed here.
+
+Empirical calibration values, voter/client data, real-campaign fixtures, restricted research, credentials, and identifying client material must not be committed. See `docs/DATA_CLASSIFICATION.md`.
+
+Run the classification guard with:
+
+```bash
+npm run check:classification
+```
 
 ## Run locally
 
 ```bash
 npm install
 npm test
+npm run build
+npm run dev
 ```
 
-## Architecture rule
+## Repository architecture
 
-UI, Netlify Functions, database code, imports, and connectors may call the math engine. The math engine must never call them.
+```text
+apps/web                  React + Vite manager UI
+packages/math-engine      Pure deterministic formulas
+packages/plan-domain      Plan lifecycle and adoption contracts
+docs                      Engineering and data-boundary documentation
+scripts                    Repository safety checks
+netlify/functions         Future server-side integration boundary
+```
 
-## Product flow
+UI, Netlify Functions, database code, imports, and connectors may call the math engine. The math engine must never call UI, network, database, or import code.
 
-`Campaign Setup → Path to Victory → Program & Budget → Adopt Plan → Command Center → Reforecast`
+## Deploy contexts
+
+`netlify.toml` defines separate production, deploy-preview, branch-deploy, and local-development context labels. Preview and branch contexts are marked aggregate-only; local development is synthetic-only. These client-visible labels are not a security boundary. When voter-level backend data is introduced, server-side Functions must enforce access from the actual Netlify deploy context.
+
+Security headers are configured globally for Netlify-served static content.
+
+No production deployment is implied by changes in this repository.
