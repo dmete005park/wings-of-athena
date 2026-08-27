@@ -18,6 +18,7 @@ import {
   type ProgramBudgetDraft,
   type ScenarioDraft,
 } from './planBuilder';
+import { isProductionDeploy, wingsDataMode, wingsDeployContext } from './deployContext';
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const formatMoney = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -229,6 +230,11 @@ export default function App() {
           <p className="subhead">One canonical plan record now connects campaign setup, path to victory, Program & Budget, and adoption. Every scenario remains a separate plan version under the same campaign.</p>
         </div>
         <div className="header-actions">
+          {!isProductionDeploy && (
+            <div className="engine-badge deploy-context-badge" title={`Data mode: ${wingsDataMode}`}>
+              {wingsDeployContext}
+            </div>
+          )}
           <div className="engine-badge">Math {MATH_ENGINE_VERSION}</div>
           <div className="quiet">{savedAt ? `Draft inputs saved ${savedAt}` : 'Local input draft'}</div>
         </div>
