@@ -12,5 +12,6 @@ export * from './pacing';
 export * from './alerts';
 export * from './metricRegistry';
 export * from './assumptionRegistry';
+export * from './calibration';
 
 export const MATH_ENGINE_VERSION = '0.2.0-alpha.1';
