@@ -33,6 +33,7 @@ Assume **one draft per scenario** ([decision memo](./decisions/MULTI_DRAFT_PER_C
 
 - [ ] GitHub branch protection on `main` (require PR, block direct push)
 - [ ] Optional: include `mathEngineVersion` in canonical input fingerprint before persistence
+- [ ] Confirm Netlify continuous deployment vs API-only deploy mode ([DEPLOY.md](./DEPLOY.md))
 
 ## Next (after Program & Budget v1)
 
