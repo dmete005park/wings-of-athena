@@ -59,7 +59,6 @@ export interface FeasibilityGapRecord {
 export interface FeasibilityAcknowledgment {
   acknowledgmentId: string;
   gapId: string;
-  /** Fingerprint of the exact feasibility-gap values the manager accepted. */
   gapFingerprint: string;
   constraintType: FeasibilityConstraintType;
   strategicMetricKey: string;
@@ -81,6 +80,24 @@ export interface PlanSectionStatus {
   missingKeys: string[];
 }
 
+export type RequirementRule =
+  | { type: 'ALWAYS' }
+  | { type: 'NEVER' }
+  | { type: 'ANY_OBJECTIVE_ENABLED' }
+  | { type: 'OBJECTIVE_ENABLED'; objectiveIds: string[] };
+
+export interface PlanFieldRequirement {
+  key: string;
+  present: boolean;
+  requiredWhen: RequirementRule;
+}
+
+export interface PlanSectionDefinition {
+  sectionKey: string;
+  requiredWhen: RequirementRule;
+  fields: PlanFieldRequirement[];
+}
+
 export interface PlanVersionRecord {
   planVersionId: string;
   campaignId: string;
@@ -97,7 +114,6 @@ export interface PlanVersionRecord {
   evidenceRefs: EvidenceLink[];
   feasibilityGaps: FeasibilityGapRecord[];
   feasibilityAcknowledgments: FeasibilityAcknowledgment[];
-  /** Transitional optionality for pre-builder drafts. Adoption treats absence as incomplete. */
   sectionStatuses?: PlanSectionStatus[];
   createdAt: string;
   createdBy: string;
@@ -108,8 +124,21 @@ export interface PlanVersionRecord {
 export interface AdoptionMetadata {
   actorId: string;
   adoptedAt: string;
-  /** Fingerprint of the exact inputs the manager reviewed immediately before adoption. */
   expectedInputHash: string;
+}
+
+export type AdoptionErrorCode =
+  | 'PLAN_SECTION_INCOMPLETE'
+  | 'PLAN_RECALC_REQUIRED'
+  | 'FEASIBILITY_ACK_REQUIRED'
+  | 'FEASIBILITY_ACK_STALE';
+
+export interface AdoptionErrorContext {
+  sectionKey?: string;
+  missingKeys?: string[];
+  gapId?: string;
+  previousGap?: FeasibilityGapRecord;
+  currentGap?: FeasibilityGapRecord;
 }
 
 export interface PlanStore {

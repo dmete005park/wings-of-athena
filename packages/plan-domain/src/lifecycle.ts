@@ -1,3 +1,4 @@
+import { PlanAdoptionError } from './errors';
 import { AdoptionMetadata, FeasibilityAcknowledgment, FeasibilityGapRecord, PlanVersionRecord } from './types';
 import { computeFeasibilityGapFingerprint, computeInputHash } from './hash';
 
@@ -31,40 +32,67 @@ function acknowledgmentMatchesGap(ack: FeasibilityAcknowledgment, gap: Feasibili
     && ack.gap === gap.gap;
 }
 
+function gapSnapshotFromAcknowledgment(ack: FeasibilityAcknowledgment): FeasibilityGapRecord {
+  return {
+    gapId: ack.gapId,
+    constraintType: ack.constraintType,
+    strategicMetricKey: ack.strategicMetricKey,
+    strategicValue: ack.strategicValue,
+    operationalMetricKey: ack.operationalMetricKey,
+    operationalValue: ack.operationalValue,
+    gap: ack.gap,
+    requiresAcknowledgment: true,
+  };
+}
+
 export function assertPlanReadyForAdoption(plan: PlanVersionRecord, expectedInputHash?: string): void {
   if (!plan.sectionStatuses) {
-    throw new Error('PLAN_SECTION_INCOMPLETE:plan:sectionStatuses');
+    throw new PlanAdoptionError('PLAN_SECTION_INCOMPLETE', {
+      sectionKey: 'plan',
+      missingKeys: ['sectionStatuses'],
+    });
   }
 
   const incompleteSection = plan.sectionStatuses.find(
     (section) => section.requiredForAdoption && section.status !== 'COMPLETE',
   );
   if (incompleteSection) {
-    const missing = incompleteSection.missingKeys.join(',');
-    throw new Error(`PLAN_SECTION_INCOMPLETE:${incompleteSection.sectionKey}:${missing}`);
+    throw new PlanAdoptionError('PLAN_SECTION_INCOMPLETE', {
+      sectionKey: incompleteSection.sectionKey,
+      missingKeys: [...incompleteSection.missingKeys],
+    });
   }
 
   const currentInputHash = computeInputHash(plan.inputs);
   if (!plan.inputHash || plan.inputHash !== currentInputHash) {
-    throw new Error('PLAN_RECALC_REQUIRED');
+    throw new PlanAdoptionError('PLAN_RECALC_REQUIRED');
   }
 
   if (expectedInputHash !== undefined && expectedInputHash !== plan.inputHash) {
-    throw new Error('PLAN_RECALC_REQUIRED');
+    throw new PlanAdoptionError('PLAN_RECALC_REQUIRED');
   }
 
   const staleSnapshot = plan.calculations.some((snapshot) => snapshot.inputHash !== currentInputHash);
   if (staleSnapshot) {
-    throw new Error('PLAN_RECALC_REQUIRED');
+    throw new PlanAdoptionError('PLAN_RECALC_REQUIRED');
   }
 
   for (const gap of plan.feasibilityGaps.filter((item) => item.requiresAcknowledgment)) {
     const acknowledgment = plan.feasibilityAcknowledgments.find((ack) => ack.gapId === gap.gapId);
     if (!acknowledgment) {
-      throw new Error(`FEASIBILITY_ACK_REQUIRED:${gap.gapId}`);
+      throw new PlanAdoptionError('FEASIBILITY_ACK_REQUIRED', {
+        sectionKey: 'program_budget',
+        gapId: gap.gapId,
+        currentGap: { ...gap },
+      });
     }
     if (!acknowledgmentMatchesGap(acknowledgment, gap)) {
-      throw new Error(`FEASIBILITY_ACK_STALE:${gap.gapId}`);
+      throw new PlanAdoptionError('FEASIBILITY_ACK_STALE', {
+        sectionKey: 'program_budget',
+        gapId: gap.gapId,
+        previousGap: gapSnapshotFromAcknowledgment(acknowledgment),
+        currentGap: { ...gap },
+      });
     }
   }
 }
