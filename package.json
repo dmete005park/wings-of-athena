@@ -1,0 +1,13 @@
+{
+  "name": "wings-of-athena",
+  "private": true,
+  "version": "0.0.1",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build -w @wings/math-engine",
+    "test": "npm run test -w @wings/math-engine"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}
