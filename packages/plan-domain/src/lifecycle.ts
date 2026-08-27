@@ -21,11 +21,32 @@ export function withCanonicalInputHash(plan: PlanVersionRecord): PlanVersionReco
   return { ...plan, inputHash: computeInputHash(plan.inputs) };
 }
 
+export function assertPlanReadyForAdoption(plan: PlanVersionRecord): void {
+  const currentInputHash = computeInputHash(plan.inputs);
+  if (!plan.inputHash || plan.inputHash !== currentInputHash) {
+    throw new Error('PLAN_RECALC_REQUIRED');
+  }
+
+  const staleSnapshot = plan.calculations.some((snapshot) => snapshot.inputHash !== currentInputHash);
+  if (staleSnapshot) {
+    throw new Error('PLAN_RECALC_REQUIRED');
+  }
+
+  const acknowledgedGapIds = new Set(plan.feasibilityAcknowledgments.map((ack) => ack.gapId));
+  const missingAcknowledgment = plan.feasibilityGaps.find(
+    (gap) => gap.requiresAcknowledgment && !acknowledgedGapIds.has(gap.gapId),
+  );
+  if (missingAcknowledgment) {
+    throw new Error(`FEASIBILITY_ACK_REQUIRED:${missingAcknowledgment.gapId}`);
+  }
+}
+
 export function adoptPlanRecord(plan: PlanVersionRecord, metadata: AdoptionMetadata): PlanVersionRecord {
   if (isAdoptedStatus(plan.status)) return plan;
+  assertPlanReadyForAdoption(plan);
   const nextStatus = plan.status === 'REFORECAST_DRAFT' ? 'ADOPTED_REFORECAST' : 'ADOPTED';
   return {
-    ...withCanonicalInputHash(plan),
+    ...plan,
     status: nextStatus,
     adoptedAt: metadata.adoptedAt,
     adoptedBy: metadata.actorId,
