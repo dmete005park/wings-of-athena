@@ -89,7 +89,7 @@ export interface OutreachPlanInput {
 }
 
 export type AlertSeverity = 'WATCH' | 'AT_RISK';
-export type WinningPathStatus = 'ON_TRACK' | 'WATCH' | 'AT_RISK';
+export type WinningPathStatus = 'ON_TRACK' | 'WATCH' | 'AT_RISK' | 'UNAVAILABLE';
 
 export interface DecisionAlert {
   code: string;
@@ -104,4 +104,6 @@ export interface DecisionAlert {
 export interface WinningPathStatusResult {
   status: WinningPathStatus;
   triggeringAlerts: DecisionAlert[];
+  triggeringRuleIds: string[];
+  missingRequiredInputs: string[];
 }
