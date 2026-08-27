@@ -129,6 +129,9 @@ export default function App() {
     ? evaluatePlanAdoptionReadiness(storedPlan, currentPlan.inputHash)
     : { ready: false, blockers: [] };
 
+  const sectionComplete = (sectionKey: string) =>
+    built.build.sectionStatuses.find((s) => s.sectionKey === sectionKey)?.status === 'COMPLETE';
+
   const switchScenario = (next: ScenarioName) => {
     setScenario(next);
     setDraft(loadScenario(next));
@@ -242,10 +245,10 @@ export default function App() {
       </header>
 
       <nav className="flow-nav" aria-label="Planning workflow">
-        <a href="#campaign-setup">Campaign</a>
-        <a href="#path-to-victory">Path to Victory</a>
-        <a href="#program-budget">Program & Budget</a>
-        <a href="#adopt-plan">Adopt Plan</a>
+        <a href="#campaign-setup" className={sectionComplete('campaign_setup') ? 'nav-complete' : 'nav-incomplete'}>Campaign{sectionComplete('campaign_setup') ? ' ✓' : ''}</a>
+        <a href="#path-to-victory" className={sectionComplete('path_to_victory') ? 'nav-complete' : 'nav-incomplete'}>Path to Victory{sectionComplete('path_to_victory') ? ' ✓' : ''}</a>
+        <a href="#program-budget" className={sectionComplete('program_budget') ? 'nav-complete' : 'nav-incomplete'}>Program & Budget{sectionComplete('program_budget') ? ' ✓' : ''}</a>
+        <a href="#adopt-plan" className={storedPlan && readiness.ready ? 'nav-complete' : 'nav-incomplete'}>Adopt Plan{storedPlan && readiness.ready ? ' ✓' : ''}</a>
       </nav>
 
       <section className="scenario-bar" aria-label="Scenario selection">
@@ -310,6 +313,14 @@ export default function App() {
           <p>Shared-pool staffing prevents doors and phones from each claiming the same people. Each enabled channel has its own manager-set unique reach target; Wings does not add channel reach together without a dedupe or overlap method.</p>
         </div>
         <p className="section-pipeline">{SECTION_PIPELINES.programBudget}</p>
+
+        <div className="program-anchor" aria-label="Path to Victory anchor">
+          <article className="metric-card metric-card-inline">
+            <p>Strategic universe (from Path to Victory)</p>
+            <strong>{built.universe?.value == null ? 'NO DATA' : formatNumber.format(built.universe.value)}</strong>
+          </article>
+          <p className="quiet program-anchor-note">Program & Budget feasibility is checked against this universe. Complete Path to Victory first if this shows NO DATA.</p>
+        </div>
 
         <div className="program-grid">
           <div className="panel">
@@ -431,8 +442,22 @@ function GapCard({ gap, built, existingAck, reason, setReason, acknowledge }: an
         <details><summary>Show shift arithmetic</summary><p>+{channelResult.additionalCompletedShiftsRequired} completed shifts{channelResult.additionalScheduledShiftsRequired != null ? ` · +${channelResult.additionalScheduledShiftsRequired} scheduled shifts` : ''}</p>{channelResult.additionalScheduledShiftsPerActiveDay != null && <p>{channelResult.additionalScheduledShiftsPerActiveDay.toFixed(1)} scheduled shifts per active day</p>}</details>
       </>}
       {gap.constraintType === 'ALLOCATION' && conflict && <div className="allocation-remedy"><strong>{conflict.shiftsToReallocate} shifts must move</strong><p>{conflict.channelAllocations.map((item: any) => `${item.channelId}: ${item.allocatedCompletedShifts}`).join(' · ')}</p></div>}
-      {gap.constraintType === 'COST' && <div className="remedy-level-one"><div><span>Additional budget required</span><strong>{formatMoney.format(gap.gap)}</strong></div></div>}
-      {gap.constraintType === 'REACHABILITY' && <p className="no-remedy">No deterministic arithmetic remedy is available. Wings records the shortfall without inventing a targeting tactic.</p>}
+      {gap.constraintType === 'COST' && (
+        <div className="remedy-level-one">
+          <div><span>Additional budget required</span><strong>{formatMoney.format(gap.gap)}</strong></div>
+        </div>
+      )}
+      {gap.constraintType === 'REACHABILITY' && (
+        <>
+          <div className="remedy-level-one">
+            <div><span>Unreachable shortfall</span><strong>{formatNumber.format(gap.gap)}</strong></div>
+          </div>
+          <div className="no-remedy">
+            <span className="no-remedy-title">No deterministic remedy</span>
+            <p>Wings records the shortfall without inventing a targeting tactic. Adjust reachable universe or unique reach targets, or acknowledge and adopt with the gap visible.</p>
+          </div>
+        </>
+      )}
       <div className="ack-form"><label><span>{stale ? 'Reason for renewed acceptance' : 'Reason if accepting this constraint'}</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label><button type="button" className="secondary-button" disabled={!reason.trim()} onClick={acknowledge}>{stale ? 'Re-acknowledge constraint' : 'Acknowledge constraint'}</button></div>
     </article>
   );

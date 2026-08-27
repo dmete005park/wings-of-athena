@@ -18,7 +18,8 @@ The repository currently includes:
 - multiple scenario plan versions per campaign
 - local-browser plan storage for the current pre-database MVP
 - a public/private calibration boundary with no empirical calibration values committed to this repository
-- repository classification checks in CI
+- field guides and section pipeline explainers for manager inputs
+- Netlify deploy with context-specific data modes and security headers
 
 Command Center and Reforecast UI are not implemented yet.
 
@@ -39,7 +40,14 @@ The current executable web flow reaches Adopt Plan. Adoption requires all requir
 - Manager acknowledgments are bound to the exact gap snapshot accepted at the time.
 - Adopted plan versions are immutable. Reforecasting creates a new child version.
 
-## Public/private boundary
+## Documentation
+
+- [Roadmap](./docs/ROADMAP.md) — what ships next
+- [Blueprint (engineering mirror)](./docs/BLUEPRINT.md) — contracts enforced in code
+- [Multi-draft decision](./docs/decisions/MULTI_DRAFT_PER_CAMPAIGN.md) — one draft per scenario (v1)
+- [Data classification](./docs/DATA_CLASSIFICATION.md)
+- [Adopt Plan gates](./docs/ADOPT_PLAN_GATES.md)
+- [Program & Budget capacity model](./docs/PROGRAM_BUDGET_CAPACITY_MODEL.md)
 
 This repository is public. Formula implementations, types, validation rules, lifecycle contracts, and synthetic fixtures may be committed here.
 
@@ -79,4 +87,4 @@ UI, Netlify Functions, database code, imports, and connectors may call the math 
 
 Security headers are configured globally for Netlify-served static content.
 
-No production deployment is implied by changes in this repository.
+Deploy via Netlify (see `netlify.toml`). Production and preview contexts set different `VITE_WINGS_*` labels at build time; server-side enforcement is required before any classified backend data exists.
