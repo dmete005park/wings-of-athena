@@ -32,6 +32,10 @@ function acknowledgmentMatchesGap(ack: FeasibilityAcknowledgment, gap: Feasibili
 }
 
 export function assertPlanReadyForAdoption(plan: PlanVersionRecord, expectedInputHash?: string): void {
+  if (!plan.sectionStatuses) {
+    throw new Error('PLAN_SECTION_INCOMPLETE:plan:sectionStatuses');
+  }
+
   const incompleteSection = plan.sectionStatuses.find(
     (section) => section.requiredForAdoption && section.status !== 'COMPLETE',
   );
