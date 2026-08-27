@@ -133,12 +133,28 @@ export type AdoptionErrorCode =
   | 'FEASIBILITY_ACK_REQUIRED'
   | 'FEASIBILITY_ACK_STALE';
 
+export type RecalculationReason =
+  | 'INPUT_HASH_MISMATCH'
+  | 'REVIEWED_HASH_MISMATCH'
+  | 'STALE_CALCULATION_SNAPSHOT';
+
 export interface AdoptionErrorContext {
   sectionKey?: string;
   missingKeys?: string[];
   gapId?: string;
   previousGap?: FeasibilityGapRecord;
   currentGap?: FeasibilityGapRecord;
+  recalculationReasons?: RecalculationReason[];
+}
+
+export interface AdoptionBlocker {
+  code: AdoptionErrorCode;
+  context: AdoptionErrorContext;
+}
+
+export interface AdoptionReadiness {
+  ready: boolean;
+  blockers: AdoptionBlocker[];
 }
 
 export interface PlanStore {
