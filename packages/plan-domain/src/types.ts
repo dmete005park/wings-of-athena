@@ -43,7 +43,7 @@ export interface CalculationSnapshot {
   inputHash: string;
 }
 
-export type FeasibilityConstraintType = 'CAPACITY' | 'COST' | 'REACHABILITY' | 'OTHER';
+export type FeasibilityConstraintType = 'CAPACITY' | 'COST' | 'REACHABILITY' | 'ALLOCATION' | 'OTHER';
 
 export interface FeasibilityGapRecord {
   gapId: string;
@@ -59,6 +59,8 @@ export interface FeasibilityGapRecord {
 export interface FeasibilityAcknowledgment {
   acknowledgmentId: string;
   gapId: string;
+  /** Fingerprint of the exact feasibility-gap values the manager accepted. */
+  gapFingerprint: string;
   constraintType: FeasibilityConstraintType;
   strategicMetricKey: string;
   strategicValue: number;
@@ -68,6 +70,15 @@ export interface FeasibilityAcknowledgment {
   reason: string;
   actorId: string;
   acknowledgedAt: string;
+}
+
+export type PlanSectionCompletion = 'COMPLETE' | 'INCOMPLETE';
+
+export interface PlanSectionStatus {
+  sectionKey: string;
+  requiredForAdoption: boolean;
+  status: PlanSectionCompletion;
+  missingKeys: string[];
 }
 
 export interface PlanVersionRecord {
@@ -86,6 +97,7 @@ export interface PlanVersionRecord {
   evidenceRefs: EvidenceLink[];
   feasibilityGaps: FeasibilityGapRecord[];
   feasibilityAcknowledgments: FeasibilityAcknowledgment[];
+  sectionStatuses: PlanSectionStatus[];
   createdAt: string;
   createdBy: string;
   adoptedAt: string | null;
