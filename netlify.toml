@@ -6,6 +6,31 @@
 [build.environment]
   NODE_VERSION = "22"
 
+[context.production.environment]
+  VITE_WINGS_DEPLOY_CONTEXT = "production"
+  VITE_WINGS_DATA_MODE = "production"
+
+[context.deploy-preview.environment]
+  VITE_WINGS_DEPLOY_CONTEXT = "deploy-preview"
+  VITE_WINGS_DATA_MODE = "aggregate-only"
+
+[context.branch-deploy.environment]
+  VITE_WINGS_DEPLOY_CONTEXT = "branch-deploy"
+  VITE_WINGS_DATA_MODE = "aggregate-only"
+
+[context.dev.environment]
+  VITE_WINGS_DEPLOY_CONTEXT = "dev"
+  VITE_WINGS_DATA_MODE = "synthetic-only"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self' data:"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
