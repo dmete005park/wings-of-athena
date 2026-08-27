@@ -40,6 +40,29 @@ export interface CalculationSnapshot {
   formulaId: string;
   inputs: Record<string, JsonValue>;
   evidenceRefs: EvidenceLink[];
+  /** Canonical fingerprint of the complete plan input set used to produce this snapshot. */
+  inputHash: string;
+}
+
+export type FeasibilityConstraintType = 'CAPACITY' | 'COST' | 'REACHABILITY' | 'OTHER';
+
+export interface FeasibilityGapRecord {
+  gapId: string;
+  constraintType: FeasibilityConstraintType;
+  strategicMetricKey: string;
+  strategicValue: number;
+  operationalMetricKey: string;
+  operationalValue: number;
+  gap: number;
+  requiresAcknowledgment: boolean;
+}
+
+export interface FeasibilityAcknowledgment {
+  acknowledgmentId: string;
+  gapId: string;
+  reason: string;
+  actorId: string;
+  acknowledgedAt: string;
 }
 
 export interface PlanVersionRecord {
@@ -56,6 +79,8 @@ export interface PlanVersionRecord {
   overrides: OverrideRecord[];
   calculations: CalculationSnapshot[];
   evidenceRefs: EvidenceLink[];
+  feasibilityGaps: FeasibilityGapRecord[];
+  feasibilityAcknowledgments: FeasibilityAcknowledgment[];
   createdAt: string;
   createdBy: string;
   adoptedAt: string | null;
