@@ -46,9 +46,17 @@ export interface ResourcePoolFeasibilityResult {
   overAllocatedCompletedShifts: number;
 }
 
+export interface AllocationConflictResult {
+  resourcePoolId: string;
+  competingChannelIds: string[];
+  channelAllocations: Array<{ channelId: string; allocatedCompletedShifts: number }>;
+  shiftsToReallocate: number;
+}
+
 export interface ProgramBudgetFeasibilityResult {
   channels: ChannelFeasibilityResult[];
   resourcePools: ResourcePoolFeasibilityResult[];
+  allocationConflicts: AllocationConflictResult[];
 }
 
 export interface ProgramBudgetFeasibilityInput {
@@ -116,14 +124,29 @@ export function calculateProgramBudgetFeasibility(
     };
   });
 
-  for (const pool of resourcePools) {
-    if (pool.overAllocatedCompletedShifts > 0) {
-      issues.push({
-        level: 'WARNING',
-        code: 'RESOURCE_POOL_OVERALLOCATED',
-        message: `${pool.resourcePoolId} is over-allocated by ${pool.overAllocatedCompletedShifts} completed shifts.`,
-      });
-    }
+  const allocationConflicts: AllocationConflictResult[] = resourcePools
+    .filter((pool) => pool.overAllocatedCompletedShifts > 0)
+    .map((pool) => {
+      const competing = input.channels.filter(
+        (channel) => channel.resourcePoolId === pool.resourcePoolId && channel.allocatedCompletedShifts > 0,
+      );
+      return {
+        resourcePoolId: pool.resourcePoolId,
+        competingChannelIds: competing.map((channel) => channel.channelId),
+        channelAllocations: competing.map((channel) => ({
+          channelId: channel.channelId,
+          allocatedCompletedShifts: channel.allocatedCompletedShifts,
+        })),
+        shiftsToReallocate: pool.overAllocatedCompletedShifts,
+      };
+    });
+
+  for (const conflict of allocationConflicts) {
+    issues.push({
+      level: 'WARNING',
+      code: 'RESOURCE_POOL_OVERALLOCATED',
+      message: `${conflict.resourcePoolId} is over-allocated by ${conflict.shiftsToReallocate} completed shifts across ${conflict.competingChannelIds.join(', ')}.`,
+    });
   }
 
   const channels: ChannelFeasibilityResult[] = input.channels.map((channel) => {
@@ -180,5 +203,5 @@ export function calculateProgramBudgetFeasibility(
     return result;
   });
 
-  return { value: { channels, resourcePools }, issues };
+  return { value: { channels, resourcePools, allocationConflicts }, issues };
 }
