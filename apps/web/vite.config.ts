@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     commonjsOptions: {
-      include: [/packages\/math-engine/, /node_modules/],
+      include: [/packages\/(math-engine|plan-domain)/, /node_modules/],
     },
   },
 });

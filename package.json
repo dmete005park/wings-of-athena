@@ -4,9 +4,9 @@
   "version": "0.0.1",
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
-    "build": "npm run build -w @wings/math-engine && npm run build -w @wings/web",
-    "test": "npm run test -w @wings/math-engine",
-    "dev": "npm run build -w @wings/math-engine && npm run dev -w @wings/web"
+    "build": "npm run build -w @wings/math-engine && npm run build -w @wings/plan-domain && npm run build -w @wings/web",
+    "test": "npm run test -w @wings/math-engine && npm run test -w @wings/plan-domain",
+    "dev": "npm run build -w @wings/math-engine && npm run build -w @wings/plan-domain && npm run dev -w @wings/web"
   },
   "devDependencies": {
     "typescript": "^5.9.2"

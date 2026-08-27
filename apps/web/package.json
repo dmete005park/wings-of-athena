@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@wings/math-engine": "0.2.0-alpha.1",
+    "@wings/plan-domain": "0.1.0-alpha.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
