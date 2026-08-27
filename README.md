@@ -80,5 +80,3 @@ UI, Netlify Functions, database code, imports, and connectors may call the math 
 Security headers are configured globally for Netlify-served static content.
 
 No production deployment is implied by changes in this repository.
-
-
