@@ -1,0 +1,13 @@
+#!/bin/sh
+# Blocks classified content before it reaches history.
+# Installed automatically by the "prepare" script in package.json.
+# See docs/DATA_CLASSIFICATION.md and CONTRIBUTING.md.
+#
+# To bypass in a genuine emergency: git commit --no-verify
+# Do not make that a habit. CI runs the same check and will fail the PR.
+
+node "$(git rev-parse --show-toplevel)/scripts/check-classification.mjs" || {
+  echo ""
+  echo "Commit blocked. Nothing has been written to history yet."
+  exit 1
+}

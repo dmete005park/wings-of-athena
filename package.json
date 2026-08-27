@@ -2,9 +2,13 @@
   "name": "wings-of-athena",
   "private": true,
   "version": "0.0.1",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "build": "npm run build -w @wings/math-engine && npm run build -w @wings/plan-domain && npm run build -w @wings/web",
+    "prepare": "git config core.hooksPath .githooks || exit 0",
     "test": "node scripts/check-classification.mjs && npm run test -w @wings/math-engine && npm run test -w @wings/plan-domain",
     "dev": "npm run build -w @wings/math-engine && npm run build -w @wings/plan-domain && npm run dev -w @wings/web",
     "check:classification": "node scripts/check-classification.mjs"
