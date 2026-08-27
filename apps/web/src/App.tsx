@@ -298,7 +298,7 @@ export default function App() {
       <section id="program-budget" className="program-section">
         <div className="section-intro">
           <div><p className="eyebrow">Step 3</p><h2>Program & Budget</h2></div>
-          <p>Shared-pool staffing prevents doors and phones from each claiming the same people. Blank fields remain incomplete rather than receiving hidden empirical defaults.</p>
+          <p>Shared-pool staffing prevents doors and phones from each claiming the same people. Each enabled channel has its own manager-set unique reach target; Wings does not add channel reach together without a dedupe or overlap method.</p>
         </div>
 
         <div className="program-grid">
@@ -393,6 +393,7 @@ function ChannelPanel({ channelId, channel, update }: { channelId: ChannelId; ch
     <div className="panel channel-panel">
       <div className="panel-heading"><div><p className="eyebrow">Channel</p><h2>{title}</h2></div><ToggleField label="Enabled" checked={channel.enabled} onChange={(value) => update('enabled', value)} compact /></div>
       {channel.enabled && <>
+        <OptionalNumberField label="Desired unique reach" value={channel.uniqueReachTarget} onChange={(value) => update('uniqueReachTarget', value)} />
         <OptionalNumberField label="Reachable universe" value={channel.reachableUniverse} onChange={(value) => update('reachableUniverse', value)} />
         <OptionalNumberField label="Contact depth" value={channel.contactDepthTarget} onChange={(value) => update('contactDepthTarget', value)} step={0.1} />
         <OptionalNumberField label="Attempts / completed shift" value={channel.attemptsPerCompletedShift} onChange={(value) => update('attemptsPerCompletedShift', value)} />
