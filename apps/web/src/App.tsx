@@ -18,6 +18,7 @@ import {
   type ProgramBudgetDraft,
   type ScenarioDraft,
 } from './planBuilder';
+import { FIELD_GUIDES, SECTION_PIPELINES, type FieldGuide } from './fieldGuides';
 import { isProductionDeploy, wingsDataMode, wingsDeployContext } from './deployContext';
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -264,20 +265,22 @@ export default function App() {
           <div><p className="eyebrow">Step 1</p><h2>Campaign Setup</h2></div>
           <button className="text-button" type="button" onClick={resetScenario}>Reset this scenario</button>
         </div>
+        <p className="section-pipeline">{SECTION_PIPELINES.campaignSetup}</p>
         <div className="setup-grid">
-          <TextField label="Campaign name" value={draft.campaign.campaignName} onChange={(value) => updateCampaign('campaignName', value)} />
-          <TextField label="Office" value={draft.campaign.office} onChange={(value) => updateCampaign('office', value)} />
-          <SelectField label="Election type" value={draft.campaign.electionType} onChange={(value) => updateCampaign('electionType', value as CampaignPathDraft['electionType'])} options={['PRIMARY', 'GENERAL', 'MUNICIPAL', 'SPECIAL', 'OTHER']} />
-          <TextField label="Election date" value={draft.campaign.electionDate} onChange={(value) => updateCampaign('electionDate', value)} type="date" />
-          <TextField label="Geography" value={draft.campaign.geography} onChange={(value) => updateCampaign('geography', value)} />
+          <TextField label="Campaign name" guide={FIELD_GUIDES.campaignName} value={draft.campaign.campaignName} onChange={(value) => updateCampaign('campaignName', value)} />
+          <TextField label="Office" guide={FIELD_GUIDES.office} value={draft.campaign.office} onChange={(value) => updateCampaign('office', value)} />
+          <SelectField label="Election type" guide={FIELD_GUIDES.electionType} value={draft.campaign.electionType} onChange={(value) => updateCampaign('electionType', value as CampaignPathDraft['electionType'])} options={['PRIMARY', 'GENERAL', 'MUNICIPAL', 'SPECIAL', 'OTHER']} />
+          <TextField label="Election date" guide={FIELD_GUIDES.electionDate} value={draft.campaign.electionDate} onChange={(value) => updateCampaign('electionDate', value)} type="date" />
+          <TextField label="Geography" guide={FIELD_GUIDES.geography} value={draft.campaign.geography} onChange={(value) => updateCampaign('geography', value)} />
         </div>
       </section>
 
       <section id="path-to-victory">
         <div className="section-intro">
           <div><p className="eyebrow">Step 2</p><h2>Path to Victory</h2></div>
-          <p>The three turnout bands remain a starter template. The math engine itself supports generic electorate segments.</p>
+          <p>The three turnout bands are a starter template. The math engine supports generic electorate segments.</p>
         </div>
+        <p className="section-pipeline">{SECTION_PIPELINES.pathToVictory}</p>
         <div className="hero-grid" aria-label="Path to victory summary">
           <Metric label="Expected electorate" value={built.electorate.value} />
           <Metric label="Mathematical threshold" value={built.threshold?.value ?? null} />
@@ -287,15 +290,15 @@ export default function App() {
         <div className="workspace">
           <div className="panel">
             <div className="panel-heading"><div><p className="eyebrow">Electorate</p><h2>Turnout assumptions</h2></div><span className="quiet">Starter template</span></div>
-            <NumberField label="Eligible voters" value={draft.campaign.eligibleVoters} onChange={(value) => updateCampaign('eligibleVoters', value)} step={100} />
+            <NumberField label="Eligible voters" guide={FIELD_GUIDES.eligibleVoters} value={draft.campaign.eligibleVoters} onChange={(value) => updateCampaign('eligibleVoters', value)} step={100} />
             <SegmentRow label="High-frequency" count={draft.campaign.highCount} setCount={(value) => updateCampaign('highCount', value)} turnout={draft.campaign.highTurnout} setTurnout={(value) => updateCampaign('highTurnout', value)} />
             <SegmentRow label="Medium-frequency" count={draft.campaign.midCount} setCount={(value) => updateCampaign('midCount', value)} turnout={draft.campaign.midTurnout} setTurnout={(value) => updateCampaign('midTurnout', value)} />
             <SegmentRow label="Low-frequency" count={draft.campaign.lowCount} setCount={(value) => updateCampaign('lowCount', value)} turnout={draft.campaign.lowTurnout} setTurnout={(value) => updateCampaign('lowTurnout', value)} />
           </div>
           <div className="panel">
             <div className="panel-heading"><div><p className="eyebrow">Planning choices</p><h2>Vote goal and reach</h2></div><span className="quiet">Manager-set</span></div>
-            <PercentField label="Adopted target share" value={draft.campaign.targetShare} onChange={(value) => updateCampaign('targetShare', value)} />
-            <NumberField label="Universe multiplier" value={draft.campaign.universeMultiplier} onChange={(value) => updateCampaign('universeMultiplier', value)} step={0.1} />
+            <PercentField label="Adopted target share" guide={FIELD_GUIDES.targetShare} value={draft.campaign.targetShare} onChange={(value) => updateCampaign('targetShare', value)} />
+            <NumberField label="Universe multiplier" guide={FIELD_GUIDES.universeMultiplier} value={draft.campaign.universeMultiplier} onChange={(value) => updateCampaign('universeMultiplier', value)} step={0.1} />
             <div className="explain"><p className="eyebrow">Why these numbers?</p><p>Expected electorate is segment count times turnout assumption. The mathematical threshold is separate from the manager-selected target share. Strategic universe is constructed from the vote goal and the chosen multiplier.</p></div>
           </div>
         </div>
@@ -306,22 +309,23 @@ export default function App() {
           <div><p className="eyebrow">Step 3</p><h2>Program & Budget</h2></div>
           <p>Shared-pool staffing prevents doors and phones from each claiming the same people. Each enabled channel has its own manager-set unique reach target; Wings does not add channel reach together without a dedupe or overlap method.</p>
         </div>
+        <p className="section-pipeline">{SECTION_PIPELINES.programBudget}</p>
 
         <div className="program-grid">
           <div className="panel">
             <div className="panel-heading"><div><p className="eyebrow">Shared resource pool</p><h2>Campaign capacity</h2></div></div>
-            <OptionalNumberField label="Workers available" value={draft.programBudget.resourcePoolWorkers} onChange={(value) => updateProgram('resourcePoolWorkers', value)} />
-            <OptionalNumberField label="Completed shifts / worker" value={draft.programBudget.completedShiftsPerWorker} onChange={(value) => updateProgram('completedShiftsPerWorker', value)} step={0.1} />
-            <OptionalNumberField label="Remaining active days" value={draft.programBudget.remainingActiveDays} onChange={(value) => updateProgram('remainingActiveDays', value)} />
-            <OptionalNumberField label="Available program budget" value={draft.programBudget.availableBudget} onChange={(value) => updateProgram('availableBudget', value)} />
+            <OptionalNumberField label="Workers available" guide={FIELD_GUIDES.resourcePoolWorkers} value={draft.programBudget.resourcePoolWorkers} onChange={(value) => updateProgram('resourcePoolWorkers', value)} />
+            <OptionalNumberField label="Completed shifts / worker" guide={FIELD_GUIDES.completedShiftsPerWorker} value={draft.programBudget.completedShiftsPerWorker} onChange={(value) => updateProgram('completedShiftsPerWorker', value)} step={0.1} />
+            <OptionalNumberField label="Remaining active days" guide={FIELD_GUIDES.remainingActiveDays} value={draft.programBudget.remainingActiveDays} onChange={(value) => updateProgram('remainingActiveDays', value)} />
+            <OptionalNumberField label="Available program budget" guide={FIELD_GUIDES.availableBudget} value={draft.programBudget.availableBudget} onChange={(value) => updateProgram('availableBudget', value)} />
           </div>
 
           <div className="panel">
             <div className="panel-heading"><div><p className="eyebrow">Optional objective</p><h2>Support IDs</h2></div></div>
-            <ToggleField label="Enable Support ID objective" checked={draft.programBudget.supportIdEnabled} onChange={(value) => updateProgram('supportIdEnabled', value)} />
+            <ToggleField label="Enable Support ID objective" guide={FIELD_GUIDES.supportIdEnabled} checked={draft.programBudget.supportIdEnabled} onChange={(value) => updateProgram('supportIdEnabled', value)} />
             {draft.programBudget.supportIdEnabled && <>
-              <OptionalPercentField label="ID coverage target" value={draft.programBudget.supportIdCoverageTarget} onChange={(value) => updateProgram('supportIdCoverageTarget', value)} />
-              <OptionalPercentField label="Supporter turnout rate" value={draft.programBudget.supporterTurnoutRate} onChange={(value) => updateProgram('supporterTurnoutRate', value)} />
+              <OptionalPercentField label="ID coverage target" guide={FIELD_GUIDES.supportIdCoverageTarget} value={draft.programBudget.supportIdCoverageTarget} onChange={(value) => updateProgram('supportIdCoverageTarget', value)} />
+              <OptionalPercentField label="Supporter turnout rate" guide={FIELD_GUIDES.supporterTurnoutRate} value={draft.programBudget.supporterTurnoutRate} onChange={(value) => updateProgram('supporterTurnoutRate', value)} />
             </>}
           </div>
         </div>
@@ -361,6 +365,7 @@ export default function App() {
           <div><p className="eyebrow">Step 4</p><h2>Adopt Plan</h2></div>
           <span className={`plan-status plan-status-${storedPlan?.status?.toLowerCase() ?? 'unsaved'}`}>{storedPlan?.status ?? 'UNSAVED'}</span>
         </div>
+        <p className="section-pipeline">{SECTION_PIPELINES.adoptPlan}</p>
         <div className="adopt-grid">
           <div>
             <p className="adopt-copy">Adoption now uses the canonical builder output across all three planning sections. Incomplete drafts can be saved, but cannot be adopted.</p>
@@ -384,7 +389,7 @@ export default function App() {
         <p className="adopt-footnote">Adoption requires complete sections, current calculations, the exact reviewed input fingerprint, and current acknowledgments for every material feasibility gap.</p>
       </section>
 
-      <footer>Local planning workflow. Command Center and Reforecast are not yet implemented. No Netlify deployment has been triggered.</footer>
+      <footer>Local planning workflow. Command Center and Reforecast are not yet implemented.</footer>
     </main>
   );
 }
@@ -397,15 +402,15 @@ function ChannelPanel({ channelId, channel, update }: { channelId: ChannelId; ch
   const title = channelId === 'doors' ? 'Doors' : 'Phones';
   return (
     <div className="panel channel-panel">
-      <div className="panel-heading"><div><p className="eyebrow">Channel</p><h2>{title}</h2></div><ToggleField label="Enabled" checked={channel.enabled} onChange={(value) => update('enabled', value)} compact /></div>
+      <div className="panel-heading"><div><p className="eyebrow">Channel</p><h2>{title}</h2></div><ToggleField label="Enabled" guide={FIELD_GUIDES.channelEnabled} checked={channel.enabled} onChange={(value) => update('enabled', value)} compact /></div>
       {channel.enabled && <>
-        <OptionalNumberField label="Desired unique reach" value={channel.uniqueReachTarget} onChange={(value) => update('uniqueReachTarget', value)} />
-        <OptionalNumberField label="Reachable universe" value={channel.reachableUniverse} onChange={(value) => update('reachableUniverse', value)} />
-        <OptionalNumberField label="Contact depth" value={channel.contactDepthTarget} onChange={(value) => update('contactDepthTarget', value)} step={0.1} />
-        <OptionalNumberField label="Attempts / completed shift" value={channel.attemptsPerCompletedShift} onChange={(value) => update('attemptsPerCompletedShift', value)} />
-        <OptionalNumberField label="Allocated completed shifts" value={channel.allocatedCompletedShifts} onChange={(value) => update('allocatedCompletedShifts', value)} />
-        <OptionalPercentField label="Flake rate (optional)" value={channel.volunteerFlakeRate} onChange={(value) => update('volunteerFlakeRate', value)} />
-        <OptionalNumberField label="Cost / completed shift (optional)" value={channel.costPerCompletedShift} onChange={(value) => update('costPerCompletedShift', value)} />
+        <OptionalNumberField label="Desired unique reach" guide={FIELD_GUIDES.uniqueReachTarget} value={channel.uniqueReachTarget} onChange={(value) => update('uniqueReachTarget', value)} />
+        <OptionalNumberField label="Reachable universe" guide={FIELD_GUIDES.reachableUniverse} value={channel.reachableUniverse} onChange={(value) => update('reachableUniverse', value)} />
+        <OptionalNumberField label="Contact depth" guide={FIELD_GUIDES.contactDepthTarget} value={channel.contactDepthTarget} onChange={(value) => update('contactDepthTarget', value)} step={0.1} />
+        <OptionalNumberField label="Attempts / completed shift" guide={FIELD_GUIDES.attemptsPerCompletedShift} value={channel.attemptsPerCompletedShift} onChange={(value) => update('attemptsPerCompletedShift', value)} />
+        <OptionalNumberField label="Allocated completed shifts" guide={FIELD_GUIDES.allocatedCompletedShifts} value={channel.allocatedCompletedShifts} onChange={(value) => update('allocatedCompletedShifts', value)} />
+        <OptionalPercentField label="Flake rate (optional)" guide={FIELD_GUIDES.volunteerFlakeRate} value={channel.volunteerFlakeRate} onChange={(value) => update('volunteerFlakeRate', value)} />
+        <OptionalNumberField label="Cost / completed shift (optional)" guide={FIELD_GUIDES.costPerCompletedShift} value={channel.costPerCompletedShift} onChange={(value) => update('costPerCompletedShift', value)} />
       </>}
     </div>
   );
@@ -433,34 +438,93 @@ function GapCard({ gap, built, existingAck, reason, setReason, acknowledge }: an
   );
 }
 
-function TextField({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
-  return <label className="field setup-field"><span>{label}</span><input type={type} value={value} onChange={(event) => onChange(event.target.value)} /></label>;
+function FieldHint({ guide }: { guide: FieldGuide }) {
+  return (
+    <p className="field-hint">
+      <strong>Format:</strong> {guide.format}. <strong>Then:</strong> {guide.flowsTo}
+      {guide.detail ? ` ${guide.detail}` : ''}
+    </p>
+  );
 }
 
-function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) {
-  return <label className="field setup-field"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option}>{option}</option>)}</select></label>;
+function TextField({ label, value, onChange, type = 'text', guide }: { label: string; value: string; onChange: (value: string) => void; type?: string; guide?: FieldGuide }) {
+  return (
+    <label className={`field setup-field${guide ? ' has-guide' : ''}`}>
+      <span>{label}</span>
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      {guide && <FieldHint guide={guide} />}
+    </label>
+  );
 }
 
-function NumberField({ label, value, onChange, step = 1 }: { label: string; value: number; onChange: (value: number) => void; step?: number }) {
-  return <label className="field"><span>{label}</span><input type="number" value={value} min="0" step={step} onChange={(event) => onChange(Number(event.target.value))} /></label>;
+function SelectField({ label, value, onChange, options, guide }: { label: string; value: string; onChange: (value: string) => void; options: string[]; guide?: FieldGuide }) {
+  return (
+    <label className={`field setup-field${guide ? ' has-guide' : ''}`}>
+      <span>{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option}>{option}</option>)}</select>
+      {guide && <FieldHint guide={guide} />}
+    </label>
+  );
 }
 
-function OptionalNumberField({ label, value, onChange, step = 1 }: { label: string; value: number | null; onChange: (value: number | null) => void; step?: number }) {
-  return <label className="field"><span>{label}</span><input type="number" value={value ?? ''} min="0" step={step} placeholder="Required" onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))} /></label>;
+function NumberField({ label, value, onChange, step = 1, guide }: { label: string; value: number; onChange: (value: number) => void; step?: number; guide?: FieldGuide }) {
+  return (
+    <label className={`field${guide ? ' has-guide' : ''}`}>
+      <span>{label}</span>
+      <input type="number" value={value} min="0" step={step} onChange={(event) => onChange(Number(event.target.value))} />
+      {guide && <FieldHint guide={guide} />}
+    </label>
+  );
 }
 
-function PercentField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <label className="field"><span>{label}</span><div className="percent-input"><input type="number" value={Math.round(value * 1000) / 10} min="0" max="100" step="0.1" onChange={(event) => onChange(Number(event.target.value) / 100)} /><span>%</span></div></label>;
+function OptionalNumberField({ label, value, onChange, step = 1, guide }: { label: string; value: number | null; onChange: (value: number | null) => void; step?: number; guide?: FieldGuide }) {
+  return (
+    <label className={`field${guide ? ' has-guide' : ''}`}>
+      <span>{label}</span>
+      <input type="number" value={value ?? ''} min="0" step={step} placeholder="Required" onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))} />
+      {guide && <FieldHint guide={guide} />}
+    </label>
+  );
 }
 
-function OptionalPercentField({ label, value, onChange }: { label: string; value: number | null; onChange: (value: number | null) => void }) {
-  return <label className="field"><span>{label}</span><div className="percent-input"><input type="number" value={value == null ? '' : Math.round(value * 1000) / 10} min="0" max="100" step="0.1" placeholder="Optional" onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value) / 100)} /><span>%</span></div></label>;
+function PercentField({ label, value, onChange, guide }: { label: string; value: number; onChange: (value: number) => void; guide?: FieldGuide }) {
+  return (
+    <label className={`field${guide ? ' has-guide' : ''}`}>
+      <span>{label}</span>
+      <div className="percent-input"><input type="number" value={Math.round(value * 1000) / 10} min="0" max="100" step="0.1" onChange={(event) => onChange(Number(event.target.value) / 100)} /><span>%</span></div>
+      {guide && <FieldHint guide={guide} />}
+    </label>
+  );
 }
 
-function ToggleField({ label, checked, onChange, compact = false }: { label: string; checked: boolean; onChange: (value: boolean) => void; compact?: boolean }) {
-  return <label className={compact ? 'toggle compact-toggle' : 'toggle'}><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span>{label}</span></label>;
+function OptionalPercentField({ label, value, onChange, guide }: { label: string; value: number | null; onChange: (value: number | null) => void; guide?: FieldGuide }) {
+  return (
+    <label className={`field${guide ? ' has-guide' : ''}`}>
+      <span>{label}</span>
+      <div className="percent-input"><input type="number" value={value == null ? '' : Math.round(value * 1000) / 10} min="0" max="100" step="0.1" placeholder="Optional" onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value) / 100)} /><span>%</span></div>
+      {guide && <FieldHint guide={guide} />}
+    </label>
+  );
+}
+
+function ToggleField({ label, checked, onChange, compact = false, guide }: { label: string; checked: boolean; onChange: (value: boolean) => void; compact?: boolean; guide?: FieldGuide }) {
+  if (compact) {
+    return <label className="toggle compact-toggle"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span>{label}</span></label>;
+  }
+  return (
+    <label className={`toggle${guide ? ' toggle-with-guide' : ''}`}>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <span>{label}</span>
+      {guide && <FieldHint guide={guide} />}
+    </label>
+  );
 }
 
 function SegmentRow({ label, count, setCount, turnout, setTurnout }: { label: string; count: number; setCount: (value: number) => void; turnout: number; setTurnout: (value: number) => void }) {
-  return <div className="segment-row"><NumberField label={`${label} voters`} value={count} onChange={setCount} step={100} /><PercentField label="Turnout" value={turnout} onChange={setTurnout} /></div>;
+  return (
+    <div className="segment-row">
+      <NumberField label={`${label} voters`} guide={FIELD_GUIDES.segmentCount} value={count} onChange={setCount} step={100} />
+      <PercentField label="Turnout" guide={FIELD_GUIDES.segmentTurnout} value={turnout} onChange={setTurnout} />
+    </div>
+  );
 }

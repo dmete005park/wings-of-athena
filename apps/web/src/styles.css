@@ -23,6 +23,10 @@ h3 { margin: 0; font-size: 1.05rem; }
 .engine-badge, .quiet { border: 1px solid #cad0c9; border-radius: 999px; padding: 8px 12px; white-space: nowrap; font-size: .8rem; color: #59635c; background: rgba(255,255,255,.45); }
 
 .flow-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.section-pipeline { margin: 0 0 18px; padding: 14px 16px; border-radius: 12px; background: #e8ece6; color: #4b5850; font-size: .88rem; line-height: 1.5; }
+.field-hint { grid-column: 1 / -1; margin: -6px 0 0; font-size: .78rem; line-height: 1.45; color: #607065; }
+.field-hint strong { font-weight: 650; color: #4b5850; }
+.field.has-guide { padding-bottom: 10px; }
 .flow-nav a { text-decoration: none; color: #334038; border: 1px solid #cfd3cd; background: #fffdf7; border-radius: 999px; padding: 8px 12px; font-size: .82rem; }
 .flow-nav a:hover { border-color: #8d978f; }
 .scenario-bar { display: flex; justify-content: space-between; gap: 18px; align-items: center; margin-bottom: 24px; padding: 14px 16px; border: 1px solid #d8dad4; border-radius: 14px; background: rgba(255,255,255,.45); }
@@ -58,6 +62,7 @@ h3 { margin: 0; font-size: 1.05rem; }
 .percent-input input { min-width: 0; }
 .percent-input span { color: #6b746e; }
 .toggle { display: flex; gap: 9px; align-items: center; padding: 12px 0; font-size: .9rem; }
+.toggle-with-guide { flex-direction: column; align-items: flex-start; gap: 4px; }
 .compact-toggle { padding: 0; }
 .toggle input { width: 18px; height: 18px; }
 .explain { margin-top: 24px; border-radius: 14px; padding: 18px; background: #eef0e9; color: #4b5850; line-height: 1.55; }
