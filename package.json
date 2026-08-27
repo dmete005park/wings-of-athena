@@ -5,8 +5,9 @@
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "build": "npm run build -w @wings/math-engine && npm run build -w @wings/plan-domain && npm run build -w @wings/web",
-    "test": "npm run test -w @wings/math-engine && npm run test -w @wings/plan-domain",
-    "dev": "npm run build -w @wings/math-engine && npm run build -w @wings/plan-domain && npm run dev -w @wings/web"
+    "test": "bash scripts/check-classification.sh && npm run test -w @wings/math-engine && npm run test -w @wings/plan-domain",
+    "dev": "npm run build -w @wings/math-engine && npm run build -w @wings/plan-domain && npm run dev -w @wings/web",
+    "check:classification": "bash scripts/check-classification.sh"
   },
   "devDependencies": {
     "typescript": "^5.9.2"
