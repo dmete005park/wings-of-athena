@@ -335,7 +335,7 @@ export default function App() {
                 built={built}
                 existingAck={draft.feasibilityAcknowledgments.find((item) => item.gapId === gap.gapId)}
                 reason={ackReasons[gap.gapId] ?? ''}
-                setReason={(value) => setAckReasons((current) => ({ ...current, [gap.gapId]: value }))}
+                setReason={(value: string) => setAckReasons((current) => ({ ...current, [gap.gapId]: value }))}
                 acknowledge={() => acknowledgeGap(gap)}
               />
             ))}
