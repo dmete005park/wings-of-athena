@@ -40,7 +40,6 @@ export interface CalculationSnapshot {
   formulaId: string;
   inputs: Record<string, JsonValue>;
   evidenceRefs: EvidenceLink[];
-  /** Canonical fingerprint of the complete plan input set used to produce this snapshot. */
   inputHash: string;
 }
 
@@ -90,6 +89,8 @@ export interface PlanVersionRecord {
 export interface AdoptionMetadata {
   actorId: string;
   adoptedAt: string;
+  /** Fingerprint of the exact inputs the manager reviewed immediately before adoption. */
+  expectedInputHash: string;
 }
 
 export interface PlanStore {
