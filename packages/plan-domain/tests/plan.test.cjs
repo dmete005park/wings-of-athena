@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   adoptPlanRecord,
   assertDraftMutable,
+  assertStoredPlanReplaceable,
   computeInputHash,
   createReforecastDraftRecord,
 } = require('../dist');
@@ -48,6 +49,11 @@ test('adopted plan cannot be treated as mutable draft', () => {
   assert.throws(() => assertDraftMutable(adopted), /ADOPTED_PLAN_IMMUTABLE/);
 });
 
+test('stored adopted plan cannot be overwritten by a new draft object with the same id', () => {
+  const adopted = adoptPlanRecord(basePlan(), { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' });
+  assert.throws(() => assertStoredPlanReplaceable(adopted), /ADOPTED_PLAN_IMMUTABLE/);
+});
+
 test('reforecast is a new child version and preserves adopted parent', () => {
   const parent = adoptPlanRecord(basePlan(), { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' });
   const child = createReforecastDraftRecord(parent, basePlan({ planVersionId: 'plan-2', inputs: { electorate: 980, targetShare: 0.51 } }));
@@ -59,5 +65,5 @@ test('reforecast is a new child version and preserves adopted parent', () => {
 
 test('reforecast requires a new version id', () => {
   const parent = adoptPlanRecord(basePlan(), { actorId: 'manager-1', adoptedAt: '2026-08-27T12:00:00Z' });
-  assert.throws(() => createReforecastDraftRecord(parent, basePlan()), /REFECAST_REQUIRES_NEW_PLAN_VERSION_ID/);
+  assert.throws(() => createReforecastDraftRecord(parent, basePlan()), /REFORECAST_REQUIRES_NEW_PLAN_VERSION_ID/);
 });
