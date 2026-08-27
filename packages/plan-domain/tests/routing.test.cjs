@@ -6,6 +6,7 @@ const {
   buildPlanVersionRecord,
   computeFeasibilityGapFingerprint,
   computeInputHash,
+  evaluatePlanAdoptionReadiness,
   evaluatePlanSectionStatuses,
 } = require('../dist');
 
@@ -104,4 +105,28 @@ test('stale acknowledgment returns routable section and old-vs-new gap snapshots
       return true;
     },
   );
+});
+
+test('adoption readiness returns all current blockers instead of only the first', () => {
+  const gapA = {
+    gapId: 'doors-capacity', constraintType: 'CAPACITY', strategicMetricKey: 'universe.reachable', strategicValue: 1000,
+    operationalMetricKey: 'universe.capacity_supported', operationalValue: 800, gap: 200, requiresAcknowledgment: true,
+  };
+  const gapB = {
+    gapId: 'phones-reachability', constraintType: 'REACHABILITY', strategicMetricKey: 'universe.strategic_desired', strategicValue: 1000,
+    operationalMetricKey: 'universe.reachable', operationalValue: 700, gap: 300, requiresAcknowledgment: true,
+  };
+  const built = buildPlanVersionRecord({ ...draftPlan(), feasibilityGaps: [gapA, gapB] }, [
+    { sectionKey: 'campaign_setup', requiredWhen: { type: 'ALWAYS' }, fields: [{ key: 'campaignName', present: false, requiredWhen: { type: 'ALWAYS' } }] },
+    definitions[1],
+  ], []);
+
+  const staleInputHash = computeInputHash({ electorate: 999 });
+  built.record.calculations[0].inputHash = staleInputHash;
+  const readiness = evaluatePlanAdoptionReadiness(built.record, staleInputHash);
+
+  assert.equal(readiness.ready, false);
+  assert.ok(readiness.blockers.some((blocker) => blocker.code === 'PLAN_SECTION_INCOMPLETE'));
+  assert.ok(readiness.blockers.some((blocker) => blocker.code === 'PLAN_RECALC_REQUIRED'));
+  assert.equal(readiness.blockers.filter((blocker) => blocker.code === 'FEASIBILITY_ACK_REQUIRED').length, 2);
 });
