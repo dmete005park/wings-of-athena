@@ -27,6 +27,7 @@ test('split diagnosis keeps reachability and capacity gaps separate with remedia
   assert.equal(result.value?.channels[0].additionalScheduledShiftsRequired, 42);
   assert.equal(result.value?.channels[0].additionalWorkersRequired, 11);
   assert.equal(result.value?.channels[0].additionalCompletedShiftsPerActiveDay, 3.3);
+  assert.equal(result.value?.channels[0].additionalScheduledShiftsPerActiveDay, 4.2);
   assert.equal(result.value?.channels[0].incrementalCost, 2475);
 });
 
