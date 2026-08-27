@@ -1,0 +1,51 @@
+---
+description: "Deterministic math engine: purity, evidence, formula versioning"
+globs: ["packages/math-engine/**"]
+alwaysApply: false
+---
+
+# Math Engine
+
+Pure TypeScript. No side effects, no I/O, no dates read from the system clock, no randomness. Every function takes inputs and returns data.
+
+## Purity
+
+- No imports from React, Netlify, storage, `fetch`, `fs`, or any database client.
+- No reads of `Date.now()`, `Math.random()`, `process.env`, or `localStorage`. If a calculation needs the current date, it is passed in as a parameter.
+- Functions return data. They never write anywhere.
+
+## Determinism
+
+The same inputs must always produce the same outputs. This is the product's central claim and it is testable — snapshot tests in `tests/` freeze known inputs to known outputs.
+
+Never add a model, heuristic, scoring function, or AI call. Winning-path status is rule precedence over named alerts, not a composite score. See `alerts.ts`.
+
+## Calibration boundary
+
+`src/calibration.ts` defines the SHAPE of a calibration profile. It MUST NOT contain values.
+
+- `NULL_CALIBRATION_PROFILE` stays empty. Do not populate it with "sensible defaults."
+- Empirical estimates and alert thresholds belong in the private `@wings/calibration-profiles` package, passed in at runtime.
+- The engine never fetches a profile. It receives one.
+
+## Registries
+
+`metricRegistry.ts` and `assumptionRegistry.ts` hold stable keys shared by UI, storage, tests, and audit. Adding a metric or assumption means adding a registry entry. Never introduce a bare string key at a call site.
+
+Formula IDs carry a version suffix (`victory.vote_goal.v0.2`). Changing a formula's behavior means a new formula ID and a bump to `MATH_ENGINE_VERSION` in `index.ts`. Changing an empirical default is a calibration profile change, not an engine change.
+
+## Evidence
+
+Every assumption carries an `EvidenceClass`. `PRODUCT_PLACEHOLDER` means provisional and the UI must label it. `isCustomerFacingPermitted()` in `calibration.ts` gates restricted sources — never bypass it.
+
+## Universe and capacity
+
+Strategic Desired Universe, Reachable Universe, and Capacity-Supported Universe are distinct stages. Never collapse them. Reachability gap and capacity gap are reported separately because they have different remedies.
+
+Capacity uses shared campaign resource pools with explicit channel allocations. Two channels sharing a pool MUST NOT each see the full pool. Over-allocation is an `ALLOCATION` constraint, distinct from a `CAPACITY` shortfall. See `docs/PROGRAM_BUDGET_CAPACITY_MODEL.md` before touching `programBudget.ts` or `capacity.ts`.
+
+Where a flake rate is modeled, distinguish completed shifts from scheduled shifts. Calendar-facing numbers use scheduled.
+
+## Tests
+
+Tests are `.cjs` files under `tests/`. Every new formula gets a unit test. Every fixture uses invented round numbers, never plausible real-world ones.

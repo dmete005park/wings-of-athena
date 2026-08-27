@@ -1,0 +1,22 @@
+---
+description: "Wings of Athena core invariants"
+alwaysApply: true
+---
+
+# Wings of Athena
+
+Campaign planning decision layer. Deterministic math, explainable assumptions, immutable adopted plans.
+
+## Never violate
+
+- `packages/math-engine` is pure. It MUST NOT import React, Netlify, a database client, storage, or network code. Nothing may import from `apps/web` into a package.
+- NEVER invent empirical values. No turnout rates, contact rates, flake rates, production rates, unit costs, or alert thresholds that look like real campaign data. Fixtures use obviously invented round numbers. Real values live in the private calibration package. See `docs/DATA_CLASSIFICATION.md`.
+- NEVER hard-code a strategic cushion. Target share defaults to the mathematical 50% baseline. A 52% or similar buffer is an explicit manager choice, never a default.
+- NEVER commit voter data, client or campaign identifiers, credentials, or `.csv`/`.xlsx` files.
+- An ADOPTED plan version is immutable. No operation may alter one in place.
+
+## Before you finish
+
+Run `npm test` from the repo root. It runs the classification guard, math-engine tests, and plan-domain tests. Then `npm run build`.
+
+Governing docs: `docs/` in this repo. Ask before changing an invariant.
