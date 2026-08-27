@@ -95,7 +95,7 @@ test('material feasibility gap requires explicit acknowledgment', () => {
   assert.throws(() => adoptPlanRecord(plan, adoptionMeta(plan)), /FEASIBILITY_ACK_REQUIRED:capacity-universe-gap/);
 });
 
-test('acknowledged feasibility gap preserves strategic and operational values', () => {
+test('acknowledged feasibility gap preserves decision reason and exact constraint snapshot', () => {
   const plan = basePlan({
     feasibilityGaps: [{
       gapId: 'capacity-universe-gap',
@@ -110,15 +110,24 @@ test('acknowledged feasibility gap preserves strategic and operational values', 
     feasibilityAcknowledgments: [{
       acknowledgmentId: 'ack-1',
       gapId: 'capacity-universe-gap',
+      constraintType: 'CAPACITY',
+      strategicMetricKey: 'universe.desired',
+      strategicValue: 1600,
+      operationalMetricKey: 'universe.capacity_supported',
+      operationalValue: 1200,
+      gap: 400,
       reason: 'Current staffing supports a smaller operational universe.',
       actorId: 'manager-1',
       acknowledgedAt: '2026-08-27T11:55:00Z',
     }],
   });
   const adopted = adoptPlanRecord(plan, adoptionMeta(plan));
-  assert.equal(adopted.feasibilityGaps[0].strategicValue, 1600);
-  assert.equal(adopted.feasibilityGaps[0].operationalValue, 1200);
-  assert.equal(adopted.feasibilityAcknowledgments.length, 1);
+  const ack = adopted.feasibilityAcknowledgments[0];
+  assert.equal(ack.constraintType, 'CAPACITY');
+  assert.equal(ack.strategicValue, 1600);
+  assert.equal(ack.operationalValue, 1200);
+  assert.equal(ack.gap, 400);
+  assert.match(ack.reason, /staffing/);
 });
 
 test('adopted plan cannot be treated as mutable draft', () => {

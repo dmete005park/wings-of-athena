@@ -59,6 +59,12 @@ export interface FeasibilityGapRecord {
 export interface FeasibilityAcknowledgment {
   acknowledgmentId: string;
   gapId: string;
+  constraintType: FeasibilityConstraintType;
+  strategicMetricKey: string;
+  strategicValue: number;
+  operationalMetricKey: string;
+  operationalValue: number;
+  gap: number;
   reason: string;
   actorId: string;
   acknowledgedAt: string;
