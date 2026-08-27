@@ -6,7 +6,8 @@ import {
   calculateRaceThreshold,
   constructStrategicUniverse,
 } from '@wings/math-engine';
-import { computeInputHash, PlanVersionRecord, JsonValue } from '@wings/plan-domain';
+import { computeInputHash } from '@wings/plan-domain';
+import type { JsonValue, PlanVersionRecord } from '@wings/plan-domain';
 import { LocalPlanStore } from './storage/localPlanStore';
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -182,6 +183,44 @@ export default function App() {
     const thresholdValue = result.threshold.value as number;
     const voteGoalValue = result.voteGoal.value as number;
     const universeValue = result.universe.value as number;
+    const calculations: PlanVersionRecord['calculations'] = [
+      {
+        metricKey: 'electorate.expected.modeled',
+        modeledValue: electorateValue,
+        adoptedValue: electorateValue,
+        formulaId: 'electorate.expected.v0.2',
+        inputs: { eligibleVoters: draft.eligibleVoters },
+        evidenceRefs: [],
+        inputHash,
+      },
+      {
+        metricKey: 'victory.threshold',
+        modeledValue: thresholdValue,
+        adoptedValue: thresholdValue,
+        formulaId: 'victory.threshold.majority.v0.2',
+        inputs: { expectedElectorate: electorateValue, requiredShare: 0.5 },
+        evidenceRefs: [],
+        inputHash,
+      },
+      {
+        metricKey: 'victory.vote_goal',
+        modeledValue: voteGoalValue,
+        adoptedValue: voteGoalValue,
+        formulaId: 'victory.vote_goal.v0.2',
+        inputs: { expectedElectorate: electorateValue, targetShare: draft.targetShare },
+        evidenceRefs: [],
+        inputHash,
+      },
+      {
+        metricKey: 'universe.desired',
+        modeledValue: universeValue,
+        adoptedValue: universeValue,
+        formulaId: 'universe.vote_goal_multiplier.v0.2',
+        inputs: { voteGoal: voteGoalValue, multiplier: draft.universeMultiplier },
+        evidenceRefs: [],
+        inputHash,
+      },
+    ];
 
     return {
       planVersionId,
@@ -201,44 +240,7 @@ export default function App() {
         { key: 'universe.vote_goal_multiplier', value: draft.universeMultiplier, evidenceRefs: [], source: 'MANAGER' },
       ],
       overrides: [],
-      calculations: [
-        {
-          metricKey: 'electorate.expected.modeled',
-          modeledValue: electorateValue,
-          adoptedValue: electorateValue,
-          formulaId: 'electorate.expected.v0.2',
-          inputs: { eligibleVoters: draft.eligibleVoters },
-          evidenceRefs: [],
-          inputHash,
-        },
-        {
-          metricKey: 'victory.threshold',
-          modeledValue: thresholdValue,
-          adoptedValue: thresholdValue,
-          formulaId: 'victory.threshold.majority.v0.2',
-          inputs: { expectedElectorate: electorateValue, requiredShare: 0.5 },
-          evidenceRefs: [],
-          inputHash,
-        },
-        {
-          metricKey: 'victory.vote_goal',
-          modeledValue: voteGoalValue,
-          adoptedValue: voteGoalValue,
-          formulaId: 'victory.vote_goal.v0.2',
-          inputs: { expectedElectorate: electorateValue, targetShare: draft.targetShare },
-          evidenceRefs: [],
-          inputHash,
-        },
-        {
-          metricKey: 'universe.desired',
-          modeledValue: universeValue,
-          adoptedValue: universeValue,
-          formulaId: 'universe.vote_goal_multiplier.v0.2',
-          inputs: { voteGoal: voteGoalValue, multiplier: draft.universeMultiplier },
-          evidenceRefs: [],
-          inputHash,
-        },
-      ],
+      calculations,
       evidenceRefs: [],
       feasibilityGaps: [],
       feasibilityAcknowledgments: [],
@@ -355,7 +357,6 @@ export default function App() {
             </div>
             <span className="quiet">Starter template</span>
           </div>
-
           <NumberField label="Eligible voters" value={draft.eligibleVoters} onChange={(value) => update('eligibleVoters', value)} step={100} />
           <SegmentRow label="High-frequency" count={draft.highCount} setCount={(value) => update('highCount', value)} turnout={draft.highTurnout} setTurnout={(value) => update('highTurnout', value)} />
           <SegmentRow label="Medium-frequency" count={draft.midCount} setCount={(value) => update('midCount', value)} turnout={draft.midTurnout} setTurnout={(value) => update('midTurnout', value)} />
@@ -370,10 +371,8 @@ export default function App() {
             </div>
             <span className="quiet">Manager-set</span>
           </div>
-
           <PercentField label="Adopted target share" value={draft.targetShare} onChange={(value) => update('targetShare', value)} />
           <NumberField label="Universe multiplier" value={draft.universeMultiplier} onChange={(value) => update('universeMultiplier', value)} step={0.1} />
-
           <div className="explain">
             <p className="eyebrow">Why these numbers?</p>
             <p>Expected electorate is the sum of each segment count multiplied by its turnout assumption. The mathematical threshold is calculated separately from the campaign's chosen target share. Wings does not insert a 52% cushion automatically. Strategic universe is then constructed from the vote goal and the manager-selected multiplier.</p>
