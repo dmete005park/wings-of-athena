@@ -39,6 +39,7 @@ export interface CampaignPathDraft {
 
 export interface ChannelDraft {
   enabled: boolean;
+  uniqueReachTarget: number | null;
   reachableUniverse: number | null;
   contactDepthTarget: number | null;
   attemptsPerCompletedShift: number | null;
@@ -92,6 +93,7 @@ export const starterCampaign: CampaignPathDraft = {
 function blankChannel(enabled: boolean): ChannelDraft {
   return {
     enabled,
+    uniqueReachTarget: null,
     reachableUniverse: null,
     contactDepthTarget: null,
     attemptsPerCompletedShift: null,
@@ -167,7 +169,8 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
     && positive(draft.programBudget.completedShiftsPerWorker)
     && enabledChannels.length > 0
     && enabledChannels.every(([, channel]) =>
-      nonNegative(channel.reachableUniverse)
+      positive(channel.uniqueReachTarget)
+      && nonNegative(channel.reachableUniverse)
       && positive(channel.contactDepthTarget)
       && positive(channel.attemptsPerCompletedShift)
       && nonNegative(channel.allocatedCompletedShifts));
@@ -187,7 +190,7 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
         channels: enabledChannels.map(([channelId, channel]) => ({
           channelId,
           resourcePoolId: 'shared-campaign-pool',
-          uniqueReachTarget: strategicUniverse!,
+          uniqueReachTarget: channel.uniqueReachTarget!,
           reachableUniverse: channel.reachableUniverse!,
           contactDepthTarget: channel.contactDepthTarget!,
           attemptsPerCompletedShift: channel.attemptsPerCompletedShift!,
@@ -201,12 +204,13 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
   const feasibilityGaps: FeasibilityGapRecord[] = [];
   if (programFeasibility?.value) {
     for (const channel of programFeasibility.value.channels) {
+      const channelDraft = draft.programBudget.channels[channel.channelId as ChannelId];
       if (channel.reachabilityGap > 0) {
         feasibilityGaps.push({
           gapId: `reachability:${channel.channelId}`,
           constraintType: 'REACHABILITY',
-          strategicMetricKey: `universe.strategic_desired.${channel.channelId}`,
-          strategicValue: strategicUniverse!,
+          strategicMetricKey: `outreach.unique_reach_target.${channel.channelId}`,
+          strategicValue: channelDraft.uniqueReachTarget!,
           operationalMetricKey: `universe.reachable.${channel.channelId}`,
           operationalValue: channel.reachableTarget,
           gap: channel.reachabilityGap,
@@ -303,6 +307,7 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
   for (const [channelId, channel] of Object.entries(draft.programBudget.channels) as Array<[ChannelId, ChannelDraft]>) {
     channelInputs[channelId] = {
       enabled: channel.enabled,
+      uniqueReachTarget: channel.uniqueReachTarget,
       reachableUniverse: channel.reachableUniverse,
       contactDepthTarget: channel.contactDepthTarget,
       attemptsPerCompletedShift: channel.attemptsPerCompletedShift,
