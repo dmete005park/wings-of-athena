@@ -7,6 +7,7 @@ export * from './universe';
 export * from './outreach';
 export * from './objectives';
 export * from './capacity';
+export * from './programBudget';
 export * from './pacing';
 export * from './alerts';
 export * from './metricRegistry';
