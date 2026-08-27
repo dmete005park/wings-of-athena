@@ -11,6 +11,12 @@ export function assertDraftMutable(plan: PlanVersionRecord): void {
   }
 }
 
+export function assertStoredPlanReplaceable(existing: PlanVersionRecord | undefined): void {
+  if (existing && isAdoptedStatus(existing.status)) {
+    throw new Error('ADOPTED_PLAN_IMMUTABLE');
+  }
+}
+
 export function withCanonicalInputHash(plan: PlanVersionRecord): PlanVersionRecord {
   return { ...plan, inputHash: computeInputHash(plan.inputs) };
 }
@@ -31,10 +37,10 @@ export function createReforecastDraftRecord(
   draft: PlanVersionRecord,
 ): PlanVersionRecord {
   if (!isAdoptedStatus(parent.status)) {
-    throw new Error('REFECAST_PARENT_MUST_BE_ADOPTED');
+    throw new Error('REFORECAST_PARENT_MUST_BE_ADOPTED');
   }
   if (draft.planVersionId === parent.planVersionId) {
-    throw new Error('REFECAST_REQUIRES_NEW_PLAN_VERSION_ID');
+    throw new Error('REFORECAST_REQUIRES_NEW_PLAN_VERSION_ID');
   }
   return withCanonicalInputHash({
     ...draft,
