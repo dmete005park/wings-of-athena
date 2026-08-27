@@ -4,6 +4,7 @@ import {
   PlanVersionRecord,
   adoptPlanRecord,
   assertDraftMutable,
+  assertStoredPlanReplaceable,
   createReforecastDraftRecord,
 } from '@wings/plan-domain';
 
@@ -29,6 +30,7 @@ export class LocalPlanStore implements PlanStore {
     assertDraftMutable(plan);
     const plans = readAll();
     const index = plans.findIndex((item) => item.planVersionId === plan.planVersionId);
+    assertStoredPlanReplaceable(index >= 0 ? plans[index] : undefined);
     if (index >= 0) plans[index] = plan;
     else plans.push(plan);
     writeAll(plans);
