@@ -18,7 +18,7 @@ import {
   type ProgramBudgetDraft,
   type ScenarioDraft,
 } from './planBuilder';
-import { FIELD_GUIDES, SECTION_PIPELINES, type FieldGuide } from './fieldGuides';
+import { FIELD_GUIDES, type FieldGuide } from './fieldGuides';
 import { isProductionDeploy, wingsDataMode, wingsDeployContext } from './deployContext';
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -89,7 +89,7 @@ export default function App() {
   const [draft, setDraft] = useState<ScenarioDraft>(() => loadScenario('BASE'));
   const [identity, setIdentity] = useState<PlanIdentity>(() => ensureIdentity('BASE'));
   const [storedPlan, setStoredPlan] = useState<PlanVersionRecord | null>(null);
-  const [planAction, setPlanAction] = useState<PlanActionState>({ kind: 'IDLE', message: 'Plan has not been saved yet.' });
+  const [planAction, setPlanAction] = useState<PlanActionState>({ kind: 'IDLE', message: 'Not saved' });
   const [ackReasons, setAckReasons] = useState<Record<string, string>>({});
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const planStore = useMemo(() => new LocalPlanStore(), []);
@@ -106,11 +106,11 @@ export default function App() {
     planStore.getPlanVersion(identity.planVersionId).then((plan) => {
       setStoredPlan(plan);
       if (plan?.status === 'ADOPTED' || plan?.status === 'ADOPTED_REFORECAST') {
-        setPlanAction({ kind: 'ADOPTED', message: 'This scenario is adopted and locked.' });
+        setPlanAction({ kind: 'ADOPTED', message: 'Adopted' });
       } else if (plan) {
-        setPlanAction({ kind: 'SAVED', message: 'This scenario draft is stored locally.' });
+        setPlanAction({ kind: 'SAVED', message: 'Saved' });
       } else {
-        setPlanAction({ kind: 'IDLE', message: 'Plan has not been saved yet.' });
+        setPlanAction({ kind: 'IDLE', message: 'Not saved' });
       }
     });
   }, [identity.planVersionId, planStore]);
@@ -173,27 +173,27 @@ export default function App() {
       setPlanAction({
         kind: 'SAVED',
         message: built.build.readyForAdoption
-          ? 'Plan draft saved. All required sections are complete.'
-          : `Plan draft saved. ${built.build.missingRequiredKeys.length} required item(s) still need attention.`,
+          ? 'Saved'
+          : `Saved · ${built.build.missingRequiredKeys.length} incomplete`,
       });
     } catch (error) {
       setPlanAction({
         kind: 'ERROR',
         message: error instanceof Error && error.message === 'ADOPTED_PLAN_IMMUTABLE'
-          ? 'This plan version is already adopted and cannot be changed in place.'
-          : 'The plan draft could not be saved.',
+          ? 'Adopted plans cannot be edited.'
+          : 'Could not save.',
       });
     }
   };
 
   const adoptPlan = async () => {
     if (!storedPlan) {
-      setPlanAction({ kind: 'ERROR', message: 'Save this plan version before adopting it.' });
+      setPlanAction({ kind: 'ERROR', message: 'Save before adopting.' });
       return;
     }
     const review = evaluatePlanAdoptionReadiness(storedPlan, currentPlan.inputHash);
     if (!review.ready) {
-      setPlanAction({ kind: 'ERROR', message: `${review.blockers.length} adoption blocker(s) require review.` });
+      setPlanAction({ kind: 'ERROR', message: `${review.blockers.length} blocker(s)` });
       const firstSection = review.blockers.find((blocker) => blocker.context.sectionKey)?.context.sectionKey;
       document.getElementById(firstSection === 'program_budget' ? 'program-budget' : 'adopt-plan')?.scrollIntoView({ behavior: 'smooth' });
       return;
@@ -205,9 +205,9 @@ export default function App() {
         expectedInputHash: currentPlan.inputHash,
       });
       setStoredPlan(adopted);
-      setPlanAction({ kind: 'ADOPTED', message: 'Plan adopted. This version is now immutable.' });
+      setPlanAction({ kind: 'ADOPTED', message: 'Adopted' });
     } catch {
-      setPlanAction({ kind: 'ERROR', message: 'The plan could not be adopted. Review the blockers below.' });
+      setPlanAction({ kind: 'ERROR', message: 'Could not adopt.' });
     }
   };
 
@@ -231,7 +231,7 @@ export default function App() {
         <div>
           <p className="eyebrow">Wings of Athena</p>
           <h1>{draft.campaign.campaignName}</h1>
-          <p className="subhead">One canonical plan record now connects campaign setup, path to victory, Program & Budget, and adoption. Every scenario remains a separate plan version under the same campaign.</p>
+          <p className="subhead">{draft.campaign.office} · {draft.campaign.geography}</p>
         </div>
         <div className="header-actions">
           {!isProductionDeploy && (
@@ -240,15 +240,15 @@ export default function App() {
             </div>
           )}
           <div className="engine-badge">Math {MATH_ENGINE_VERSION}</div>
-          <div className="quiet">{savedAt ? `Draft inputs saved ${savedAt}` : 'Local input draft'}</div>
+          <div className="quiet">{savedAt ? `Saved ${savedAt}` : 'Draft'}</div>
         </div>
       </header>
 
       <nav className="flow-nav" aria-label="Planning workflow">
-        <a href="#campaign-setup" className={sectionComplete('campaign_setup') ? 'nav-complete' : 'nav-incomplete'}>Campaign{sectionComplete('campaign_setup') ? ' ✓' : ''}</a>
-        <a href="#path-to-victory" className={sectionComplete('path_to_victory') ? 'nav-complete' : 'nav-incomplete'}>Path to Victory{sectionComplete('path_to_victory') ? ' ✓' : ''}</a>
-        <a href="#program-budget" className={sectionComplete('program_budget') ? 'nav-complete' : 'nav-incomplete'}>Program & Budget{sectionComplete('program_budget') ? ' ✓' : ''}</a>
-        <a href="#adopt-plan" className={storedPlan && readiness.ready ? 'nav-complete' : 'nav-incomplete'}>Adopt Plan{storedPlan && readiness.ready ? ' ✓' : ''}</a>
+        <a href="#campaign-setup" className={sectionComplete('campaign_setup') ? 'nav-complete' : ''}>Campaign</a>
+        <a href="#path-to-victory" className={sectionComplete('path_to_victory') ? 'nav-complete' : ''}>Path to Victory</a>
+        <a href="#program-budget" className={sectionComplete('program_budget') ? 'nav-complete' : ''}>Program & Budget</a>
+        <a href="#adopt-plan" className={storedPlan && readiness.ready ? 'nav-complete' : ''}>Adopt</a>
       </nav>
 
       <section className="scenario-bar" aria-label="Scenario selection">
@@ -266,9 +266,8 @@ export default function App() {
       <section id="campaign-setup" className="campaign-card" aria-label="Campaign setup">
         <div className="panel-heading">
           <div><p className="eyebrow">Step 1</p><h2>Campaign Setup</h2></div>
-          <button className="text-button" type="button" onClick={resetScenario}>Reset this scenario</button>
+          <button className="text-button" type="button" onClick={resetScenario}>Reset</button>
         </div>
-        <p className="section-pipeline">{SECTION_PIPELINES.campaignSetup}</p>
         <div className="setup-grid">
           <TextField label="Campaign name" guide={FIELD_GUIDES.campaignName} value={draft.campaign.campaignName} onChange={(value) => updateCampaign('campaignName', value)} />
           <TextField label="Office" guide={FIELD_GUIDES.office} value={draft.campaign.office} onChange={(value) => updateCampaign('office', value)} />
@@ -281,28 +280,25 @@ export default function App() {
       <section id="path-to-victory">
         <div className="section-intro">
           <div><p className="eyebrow">Step 2</p><h2>Path to Victory</h2></div>
-          <p>The three turnout bands are a starter template. The math engine supports generic electorate segments.</p>
         </div>
-        <p className="section-pipeline">{SECTION_PIPELINES.pathToVictory}</p>
         <div className="hero-grid" aria-label="Path to victory summary">
-          <Metric label="Expected electorate" value={built.electorate.value} />
-          <Metric label="Mathematical threshold" value={built.threshold?.value ?? null} />
-          <Metric label="Campaign vote goal" value={built.voteGoal?.value ?? null} />
-          <Metric label="Strategic universe" value={built.universe?.value ?? null} />
+          <Metric label="Expected voters" value={built.electorate.value} />
+          <Metric label="Majority line" value={built.threshold?.value ?? null} />
+          <Metric label="Vote goal" value={built.voteGoal?.value ?? null} />
+          <Metric label="Universe" value={built.universe?.value ?? null} />
         </div>
         <div className="workspace">
           <div className="panel">
-            <div className="panel-heading"><div><p className="eyebrow">Electorate</p><h2>Turnout assumptions</h2></div><span className="quiet">Starter template</span></div>
+            <div className="panel-heading"><div><p className="eyebrow">Electorate</p><h2>Turnout</h2></div></div>
             <NumberField label="Eligible voters" guide={FIELD_GUIDES.eligibleVoters} value={draft.campaign.eligibleVoters} onChange={(value) => updateCampaign('eligibleVoters', value)} step={100} />
             <SegmentRow label="High-frequency" count={draft.campaign.highCount} setCount={(value) => updateCampaign('highCount', value)} turnout={draft.campaign.highTurnout} setTurnout={(value) => updateCampaign('highTurnout', value)} />
             <SegmentRow label="Medium-frequency" count={draft.campaign.midCount} setCount={(value) => updateCampaign('midCount', value)} turnout={draft.campaign.midTurnout} setTurnout={(value) => updateCampaign('midTurnout', value)} />
             <SegmentRow label="Low-frequency" count={draft.campaign.lowCount} setCount={(value) => updateCampaign('lowCount', value)} turnout={draft.campaign.lowTurnout} setTurnout={(value) => updateCampaign('lowTurnout', value)} />
           </div>
           <div className="panel">
-            <div className="panel-heading"><div><p className="eyebrow">Planning choices</p><h2>Vote goal and reach</h2></div><span className="quiet">Manager-set</span></div>
-            <PercentField label="Adopted target share" guide={FIELD_GUIDES.targetShare} value={draft.campaign.targetShare} onChange={(value) => updateCampaign('targetShare', value)} />
+            <div className="panel-heading"><div><p className="eyebrow">Goal</p><h2>Vote goal & universe</h2></div></div>
+            <PercentField label="Target share" guide={FIELD_GUIDES.targetShare} value={draft.campaign.targetShare} onChange={(value) => updateCampaign('targetShare', value)} />
             <NumberField label="Universe multiplier" guide={FIELD_GUIDES.universeMultiplier} value={draft.campaign.universeMultiplier} onChange={(value) => updateCampaign('universeMultiplier', value)} step={0.1} />
-            <div className="explain"><p className="eyebrow">Why these numbers?</p><p>Expected electorate is segment count times turnout assumption. The mathematical threshold is separate from the manager-selected target share. Strategic universe is constructed from the vote goal and the chosen multiplier.</p></div>
           </div>
         </div>
       </section>
@@ -310,33 +306,28 @@ export default function App() {
       <section id="program-budget" className="program-section">
         <div className="section-intro">
           <div><p className="eyebrow">Step 3</p><h2>Program & Budget</h2></div>
-          <p>Shared-pool staffing prevents doors and phones from each claiming the same people. Each enabled channel has its own manager-set unique reach target; Wings does not add channel reach together without a dedupe or overlap method.</p>
         </div>
-        <p className="section-pipeline">{SECTION_PIPELINES.programBudget}</p>
 
-        <div className="program-anchor" aria-label="Path to Victory anchor">
-          <article className="metric-card metric-card-inline">
-            <p>Strategic universe (from Path to Victory)</p>
-            <strong>{built.universe?.value == null ? 'NO DATA' : formatNumber.format(built.universe.value)}</strong>
-          </article>
-          <p className="quiet program-anchor-note">Program & Budget feasibility is checked against this universe. Complete Path to Victory first if this shows NO DATA.</p>
+        <div className="program-anchor" aria-label="Universe anchor">
+          <span className="anchor-label">Universe</span>
+          <strong className="anchor-value">{built.universe?.value == null ? 'NO DATA' : formatNumber.format(built.universe.value)}</strong>
         </div>
 
         <div className="program-grid">
           <div className="panel">
-            <div className="panel-heading"><div><p className="eyebrow">Shared resource pool</p><h2>Campaign capacity</h2></div></div>
-            <OptionalNumberField label="Workers available" guide={FIELD_GUIDES.resourcePoolWorkers} value={draft.programBudget.resourcePoolWorkers} onChange={(value) => updateProgram('resourcePoolWorkers', value)} />
-            <OptionalNumberField label="Completed shifts / worker" guide={FIELD_GUIDES.completedShiftsPerWorker} value={draft.programBudget.completedShiftsPerWorker} onChange={(value) => updateProgram('completedShiftsPerWorker', value)} step={0.1} />
-            <OptionalNumberField label="Remaining active days" guide={FIELD_GUIDES.remainingActiveDays} value={draft.programBudget.remainingActiveDays} onChange={(value) => updateProgram('remainingActiveDays', value)} />
-            <OptionalNumberField label="Available program budget" guide={FIELD_GUIDES.availableBudget} value={draft.programBudget.availableBudget} onChange={(value) => updateProgram('availableBudget', value)} />
+            <div className="panel-heading"><div><p className="eyebrow">Pool</p><h2>Capacity</h2></div></div>
+            <OptionalNumberField label="Workers" guide={FIELD_GUIDES.resourcePoolWorkers} value={draft.programBudget.resourcePoolWorkers} onChange={(value) => updateProgram('resourcePoolWorkers', value)} />
+            <OptionalNumberField label="Shifts per worker" guide={FIELD_GUIDES.completedShiftsPerWorker} value={draft.programBudget.completedShiftsPerWorker} onChange={(value) => updateProgram('completedShiftsPerWorker', value)} step={0.1} />
+            <OptionalNumberField label="Days left" guide={FIELD_GUIDES.remainingActiveDays} value={draft.programBudget.remainingActiveDays} onChange={(value) => updateProgram('remainingActiveDays', value)} />
+            <OptionalNumberField label="Budget" guide={FIELD_GUIDES.availableBudget} value={draft.programBudget.availableBudget} onChange={(value) => updateProgram('availableBudget', value)} />
           </div>
 
           <div className="panel">
-            <div className="panel-heading"><div><p className="eyebrow">Optional objective</p><h2>Support IDs</h2></div></div>
-            <ToggleField label="Enable Support ID objective" guide={FIELD_GUIDES.supportIdEnabled} checked={draft.programBudget.supportIdEnabled} onChange={(value) => updateProgram('supportIdEnabled', value)} />
+            <div className="panel-heading"><div><p className="eyebrow">Optional</p><h2>Support IDs</h2></div></div>
+            <ToggleField label="Enable" guide={FIELD_GUIDES.supportIdEnabled} checked={draft.programBudget.supportIdEnabled} onChange={(value) => updateProgram('supportIdEnabled', value)} />
             {draft.programBudget.supportIdEnabled && <>
-              <OptionalPercentField label="ID coverage target" guide={FIELD_GUIDES.supportIdCoverageTarget} value={draft.programBudget.supportIdCoverageTarget} onChange={(value) => updateProgram('supportIdCoverageTarget', value)} />
-              <OptionalPercentField label="Supporter turnout rate" guide={FIELD_GUIDES.supporterTurnoutRate} value={draft.programBudget.supporterTurnoutRate} onChange={(value) => updateProgram('supporterTurnoutRate', value)} />
+              <OptionalPercentField label="ID coverage" guide={FIELD_GUIDES.supportIdCoverageTarget} value={draft.programBudget.supportIdCoverageTarget} onChange={(value) => updateProgram('supportIdCoverageTarget', value)} />
+              <OptionalPercentField label="Supporter turnout" guide={FIELD_GUIDES.supporterTurnoutRate} value={draft.programBudget.supporterTurnoutRate} onChange={(value) => updateProgram('supporterTurnoutRate', value)} />
             </>}
           </div>
         </div>
@@ -366,41 +357,42 @@ export default function App() {
 
       {built.issues.length > 0 && (
         <section className="issues" aria-live="polite">
-          <strong>Calculation review</strong>
+          <strong>Review</strong>
           {built.issues.map((issue) => <p key={`${issue.code}-${issue.message}`}>{issue.level}: {issue.message}</p>)}
         </section>
       )}
 
       <section id="adopt-plan" className="adopt-panel" aria-label="Adopt plan">
         <div className="panel-heading">
-          <div><p className="eyebrow">Step 4</p><h2>Adopt Plan</h2></div>
+          <div><p className="eyebrow">Step 4</p><h2>Adopt</h2></div>
           <span className={`plan-status plan-status-${storedPlan?.status?.toLowerCase() ?? 'unsaved'}`}>{storedPlan?.status ?? 'UNSAVED'}</span>
         </div>
-        <p className="section-pipeline">{SECTION_PIPELINES.adoptPlan}</p>
         <div className="adopt-grid">
           <div>
-            <p className="adopt-copy">Adoption now uses the canonical builder output across all three planning sections. Incomplete drafts can be saved, but cannot be adopted.</p>
             <div className={`plan-message plan-message-${planAction.kind.toLowerCase()}`} role="status">{planAction.message}</div>
-            {planChangedSinceSave && !planIsAdopted && <p className="changed-warning">Inputs changed since the saved plan. Save the updated draft before adoption.</p>}
-            {!built.build.readyForAdoption && <div className="blocker-list"><strong>Section completeness</strong>{built.build.missingRequiredKeys.map((key) => <p key={key}>{key}</p>)}</div>}
-            {storedPlan && !readiness.ready && <div className="blocker-list"><strong>Adoption blockers</strong>{readiness.blockers.map((blocker, index) => <p key={`${blocker.code}-${index}`}>{blocker.code}{blocker.context.gapId ? ` · ${blocker.context.gapId}` : ''}</p>)}</div>}
+            {planChangedSinceSave && !planIsAdopted && <p className="changed-warning">Inputs changed — save again.</p>}
+            {!built.build.readyForAdoption && <div className="blocker-list"><strong>Incomplete</strong>{built.build.missingRequiredKeys.map((key) => <p key={key}>{key}</p>)}</div>}
+            {storedPlan && !readiness.ready && <div className="blocker-list"><strong>Blockers</strong>{readiness.blockers.map((blocker, index) => <p key={`${blocker.code}-${index}`}>{blocker.code}{blocker.context.gapId ? ` · ${blocker.context.gapId}` : ''}</p>)}</div>}
           </div>
           <dl className="plan-meta">
             <div><dt>Scenario</dt><dd>{scenario}</dd></div>
-            <div><dt>Plan version</dt><dd>{identity.planVersionId.slice(0, 18)}…</dd></div>
-            <div><dt>Math engine</dt><dd>{MATH_ENGINE_VERSION}</dd></div>
-            <div><dt>Current input hash</dt><dd>{currentPlan.inputHash}</dd></div>
-            <div><dt>Stored input hash</dt><dd>{storedPlan?.inputHash ?? 'Not saved'}</dd></div>
+            <div><dt>Status</dt><dd>{storedPlan?.status ?? 'UNSAVED'}</dd></div>
           </dl>
         </div>
+        <details className="plan-audit">
+          <summary>Audit</summary>
+          <dl className="plan-meta plan-meta-audit">
+            <div><dt>Plan version</dt><dd>{identity.planVersionId}</dd></div>
+            <div><dt>Engine</dt><dd>{MATH_ENGINE_VERSION}</dd></div>
+            <div><dt>Input hash</dt><dd>{currentPlan.inputHash}</dd></div>
+            <div><dt>Stored hash</dt><dd>{storedPlan?.inputHash ?? '—'}</dd></div>
+          </dl>
+        </details>
         <div className="adopt-actions">
-          <button className="secondary-button" type="button" onClick={savePlanDraft} disabled={planIsAdopted}>Save plan draft</button>
-          <button className="primary-button" type="button" onClick={adoptPlan} disabled={!storedPlan || planIsAdopted || planChangedSinceSave || !readiness.ready}>Adopt this plan</button>
+          <button className="secondary-button" type="button" onClick={savePlanDraft} disabled={planIsAdopted}>Save</button>
+          <button className="primary-button" type="button" onClick={adoptPlan} disabled={!storedPlan || planIsAdopted || planChangedSinceSave || !readiness.ready}>Adopt</button>
         </div>
-        <p className="adopt-footnote">Adoption requires complete sections, current calculations, the exact reviewed input fingerprint, and current acknowledgments for every material feasibility gap.</p>
       </section>
-
-      <footer>Local planning workflow. Command Center and Reforecast are not yet implemented.</footer>
     </main>
   );
 }
@@ -413,15 +405,15 @@ function ChannelPanel({ channelId, channel, update }: { channelId: ChannelId; ch
   const title = channelId === 'doors' ? 'Doors' : 'Phones';
   return (
     <div className="panel channel-panel">
-      <div className="panel-heading"><div><p className="eyebrow">Channel</p><h2>{title}</h2></div><ToggleField label="Enabled" guide={FIELD_GUIDES.channelEnabled} checked={channel.enabled} onChange={(value) => update('enabled', value)} compact /></div>
+      <div className="panel-heading"><div><h2>{title}</h2></div><ToggleField label="On" guide={FIELD_GUIDES.channelEnabled} checked={channel.enabled} onChange={(value) => update('enabled', value)} compact /></div>
       {channel.enabled && <>
-        <OptionalNumberField label="Desired unique reach" guide={FIELD_GUIDES.uniqueReachTarget} value={channel.uniqueReachTarget} onChange={(value) => update('uniqueReachTarget', value)} />
-        <OptionalNumberField label="Reachable universe" guide={FIELD_GUIDES.reachableUniverse} value={channel.reachableUniverse} onChange={(value) => update('reachableUniverse', value)} />
+        <OptionalNumberField label="Unique reach" guide={FIELD_GUIDES.uniqueReachTarget} value={channel.uniqueReachTarget} onChange={(value) => update('uniqueReachTarget', value)} />
+        <OptionalNumberField label="Reachable" guide={FIELD_GUIDES.reachableUniverse} value={channel.reachableUniverse} onChange={(value) => update('reachableUniverse', value)} />
         <OptionalNumberField label="Contact depth" guide={FIELD_GUIDES.contactDepthTarget} value={channel.contactDepthTarget} onChange={(value) => update('contactDepthTarget', value)} step={0.1} />
-        <OptionalNumberField label="Attempts / completed shift" guide={FIELD_GUIDES.attemptsPerCompletedShift} value={channel.attemptsPerCompletedShift} onChange={(value) => update('attemptsPerCompletedShift', value)} />
-        <OptionalNumberField label="Allocated completed shifts" guide={FIELD_GUIDES.allocatedCompletedShifts} value={channel.allocatedCompletedShifts} onChange={(value) => update('allocatedCompletedShifts', value)} />
-        <OptionalPercentField label="Flake rate (optional)" guide={FIELD_GUIDES.volunteerFlakeRate} value={channel.volunteerFlakeRate} onChange={(value) => update('volunteerFlakeRate', value)} />
-        <OptionalNumberField label="Cost / completed shift (optional)" guide={FIELD_GUIDES.costPerCompletedShift} value={channel.costPerCompletedShift} onChange={(value) => update('costPerCompletedShift', value)} />
+        <OptionalNumberField label="Attempts / shift" guide={FIELD_GUIDES.attemptsPerCompletedShift} value={channel.attemptsPerCompletedShift} onChange={(value) => update('attemptsPerCompletedShift', value)} />
+        <OptionalNumberField label="Allocated shifts" guide={FIELD_GUIDES.allocatedCompletedShifts} value={channel.allocatedCompletedShifts} onChange={(value) => update('allocatedCompletedShifts', value)} />
+        <OptionalPercentField label="Flake rate" guide={FIELD_GUIDES.volunteerFlakeRate} value={channel.volunteerFlakeRate} onChange={(value) => update('volunteerFlakeRate', value)} />
+        <OptionalNumberField label="Cost / shift" guide={FIELD_GUIDES.costPerCompletedShift} value={channel.costPerCompletedShift} onChange={(value) => update('costPerCompletedShift', value)} />
       </>}
     </div>
   );
@@ -435,99 +427,81 @@ function GapCard({ gap, built, existingAck, reason, setReason, acknowledge }: an
 
   return (
     <article className={`gap-card gap-${gap.constraintType.toLowerCase()}`}>
-      <div className="gap-heading"><div><p className="eyebrow">{gap.constraintType}</p><h3>{gap.gap.toLocaleString()} gap</h3></div>{existingAck && !stale && <span className="ack-badge">Acknowledged</span>}</div>
-      {stale && <div className="stale-delta"><strong>Changed since acknowledgment</strong><p>Previously {existingAck.gap.toLocaleString()} → now {gap.gap.toLocaleString()} ({gap.gap - existingAck.gap >= 0 ? '+' : ''}{(gap.gap - existingAck.gap).toLocaleString()})</p></div>}
+      <div className="gap-heading"><div><p className="eyebrow">{gap.constraintType}</p><h3>{gap.gap.toLocaleString()}</h3></div>{existingAck && !stale && <span className="ack-badge">OK</span>}</div>
+      {stale && <div className="stale-delta"><strong>Changed</strong><p>{existingAck.gap.toLocaleString()} → {gap.gap.toLocaleString()}</p></div>}
       {gap.constraintType === 'CAPACITY' && channelResult && <>
-        <div className="remedy-level-one"><div><span>Additional workers</span><strong>+{channelResult.additionalWorkersRequired}</strong></div><div><span>Incremental cost</span><strong>{channelResult.incrementalCost == null ? 'NO DATA' : formatMoney.format(channelResult.incrementalCost)}</strong></div></div>
-        <details><summary>Show shift arithmetic</summary><p>+{channelResult.additionalCompletedShiftsRequired} completed shifts{channelResult.additionalScheduledShiftsRequired != null ? ` · +${channelResult.additionalScheduledShiftsRequired} scheduled shifts` : ''}</p>{channelResult.additionalScheduledShiftsPerActiveDay != null && <p>{channelResult.additionalScheduledShiftsPerActiveDay.toFixed(1)} scheduled shifts per active day</p>}</details>
+        <div className="remedy-level-one"><div><span>Workers</span><strong>+{channelResult.additionalWorkersRequired}</strong></div><div><span>Cost</span><strong>{channelResult.incrementalCost == null ? 'NO DATA' : formatMoney.format(channelResult.incrementalCost)}</strong></div></div>
+        <details><summary>Shift math</summary><p>+{channelResult.additionalCompletedShiftsRequired} shifts{channelResult.additionalScheduledShiftsRequired != null ? ` · +${channelResult.additionalScheduledShiftsRequired} scheduled` : ''}</p>{channelResult.additionalScheduledShiftsPerActiveDay != null && <p>{channelResult.additionalScheduledShiftsPerActiveDay.toFixed(1)} / day</p>}</details>
       </>}
-      {gap.constraintType === 'ALLOCATION' && conflict && <div className="allocation-remedy"><strong>{conflict.shiftsToReallocate} shifts must move</strong><p>{conflict.channelAllocations.map((item: any) => `${item.channelId}: ${item.allocatedCompletedShifts}`).join(' · ')}</p></div>}
+      {gap.constraintType === 'ALLOCATION' && conflict && <div className="allocation-remedy"><strong>{conflict.shiftsToReallocate} shifts to move</strong><p>{conflict.channelAllocations.map((item: any) => `${item.channelId}: ${item.allocatedCompletedShifts}`).join(' · ')}</p></div>}
       {gap.constraintType === 'COST' && (
         <div className="remedy-level-one">
-          <div><span>Additional budget required</span><strong>{formatMoney.format(gap.gap)}</strong></div>
+          <div><span>Budget gap</span><strong>{formatMoney.format(gap.gap)}</strong></div>
         </div>
       )}
       {gap.constraintType === 'REACHABILITY' && (
         <>
           <div className="remedy-level-one">
-            <div><span>Unreachable shortfall</span><strong>{formatNumber.format(gap.gap)}</strong></div>
+            <div><span>Shortfall</span><strong>{formatNumber.format(gap.gap)}</strong></div>
           </div>
-          <div className="no-remedy">
-            <span className="no-remedy-title">No deterministic remedy</span>
-            <p>Wings records the shortfall without inventing a targeting tactic. Adjust reachable universe or unique reach targets, or acknowledge and adopt with the gap visible.</p>
-          </div>
+          <p className="no-remedy">No auto-fix. Adjust reach targets or acknowledge.</p>
         </>
       )}
-      <div className="ack-form"><label><span>{stale ? 'Reason for renewed acceptance' : 'Reason if accepting this constraint'}</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label><button type="button" className="secondary-button" disabled={!reason.trim()} onClick={acknowledge}>{stale ? 'Re-acknowledge constraint' : 'Acknowledge constraint'}</button></div>
+      <div className="ack-form"><label><span>{stale ? 'New reason' : 'Reason'}</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why accept this gap?" /></label><button type="button" className="secondary-button" disabled={!reason.trim()} onClick={acknowledge}>{stale ? 'Re-acknowledge' : 'Acknowledge'}</button></div>
     </article>
-  );
-}
-
-function FieldHint({ guide }: { guide: FieldGuide }) {
-  return (
-    <p className="field-hint">
-      <strong>Format:</strong> {guide.format}. <strong>Then:</strong> {guide.flowsTo}
-      {guide.detail ? ` ${guide.detail}` : ''}
-    </p>
   );
 }
 
 function TextField({ label, value, onChange, type = 'text', guide }: { label: string; value: string; onChange: (value: string) => void; type?: string; guide?: FieldGuide }) {
   return (
-    <label className={`field setup-field${guide ? ' has-guide' : ''}`}>
+    <label className="field setup-field">
       <span>{label}</span>
       <input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
-      {guide && <FieldHint guide={guide} />}
     </label>
   );
 }
 
 function SelectField({ label, value, onChange, options, guide }: { label: string; value: string; onChange: (value: string) => void; options: string[]; guide?: FieldGuide }) {
   return (
-    <label className={`field setup-field${guide ? ' has-guide' : ''}`}>
+    <label className="field setup-field">
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option}>{option}</option>)}</select>
-      {guide && <FieldHint guide={guide} />}
     </label>
   );
 }
 
 function NumberField({ label, value, onChange, step = 1, guide }: { label: string; value: number; onChange: (value: number) => void; step?: number; guide?: FieldGuide }) {
   return (
-    <label className={`field${guide ? ' has-guide' : ''}`}>
+    <label className="field">
       <span>{label}</span>
       <input type="number" value={value} min="0" step={step} onChange={(event) => onChange(Number(event.target.value))} />
-      {guide && <FieldHint guide={guide} />}
     </label>
   );
 }
 
 function OptionalNumberField({ label, value, onChange, step = 1, guide }: { label: string; value: number | null; onChange: (value: number | null) => void; step?: number; guide?: FieldGuide }) {
   return (
-    <label className={`field${guide ? ' has-guide' : ''}`}>
+    <label className="field">
       <span>{label}</span>
-      <input type="number" value={value ?? ''} min="0" step={step} placeholder="Required" onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))} />
-      {guide && <FieldHint guide={guide} />}
+      <input type="number" value={value ?? ''} min="0" step={step} placeholder={guide?.format ?? '—'} onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))} />
     </label>
   );
 }
 
 function PercentField({ label, value, onChange, guide }: { label: string; value: number; onChange: (value: number) => void; guide?: FieldGuide }) {
   return (
-    <label className={`field${guide ? ' has-guide' : ''}`}>
+    <label className="field">
       <span>{label}</span>
       <div className="percent-input"><input type="number" value={Math.round(value * 1000) / 10} min="0" max="100" step="0.1" onChange={(event) => onChange(Number(event.target.value) / 100)} /><span>%</span></div>
-      {guide && <FieldHint guide={guide} />}
     </label>
   );
 }
 
 function OptionalPercentField({ label, value, onChange, guide }: { label: string; value: number | null; onChange: (value: number | null) => void; guide?: FieldGuide }) {
   return (
-    <label className={`field${guide ? ' has-guide' : ''}`}>
+    <label className="field">
       <span>{label}</span>
-      <div className="percent-input"><input type="number" value={value == null ? '' : Math.round(value * 1000) / 10} min="0" max="100" step="0.1" placeholder="Optional" onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value) / 100)} /><span>%</span></div>
-      {guide && <FieldHint guide={guide} />}
+      <div className="percent-input"><input type="number" value={value == null ? '' : Math.round(value * 1000) / 10} min="0" max="100" step="0.1" placeholder="—" onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value) / 100)} /><span>%</span></div>
     </label>
   );
 }
@@ -537,10 +511,9 @@ function ToggleField({ label, checked, onChange, compact = false, guide }: { lab
     return <label className="toggle compact-toggle"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span>{label}</span></label>;
   }
   return (
-    <label className={`toggle${guide ? ' toggle-with-guide' : ''}`}>
+    <label className="toggle">
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
-      {guide && <FieldHint guide={guide} />}
     </label>
   );
 }
