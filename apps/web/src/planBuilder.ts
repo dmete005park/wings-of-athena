@@ -11,6 +11,7 @@ import {
   computeFeasibilityGapFingerprint,
   type FeasibilityAcknowledgment,
   type FeasibilityGapRecord,
+  type JsonValue,
   type PlanSectionDefinition,
   type PlanVersionRecord,
   type ScenarioName,
@@ -121,16 +122,12 @@ export function createStarterScenario(scenario: ScenarioName = 'BASE'): Scenario
   };
 }
 
-function isFiniteNumber(value: number | null): value is number {
-  return value !== null && Number.isFinite(value);
-}
-
 function positive(value: number | null): boolean {
-  return isFiniteNumber(value) && value > 0;
+  return value !== null && Number.isFinite(value) && value > 0;
 }
 
 function nonNegative(value: number | null): boolean {
-  return isFiniteNumber(value) && value >= 0;
+  return value !== null && Number.isFinite(value) && value >= 0;
 }
 
 export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity) {
@@ -148,7 +145,7 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
   const threshold = electorate.value === null
     ? null
     : calculateRaceThreshold(electorate.value, { type: 'MAJORITY', requiredShare: 0.5, strictlyGreater: true });
-  const voteGoal = electorate.value === null || threshold?.value === null
+  const voteGoal = electorate.value === null || threshold?.value == null
     ? null
     : calculateCampaignVoteGoal({
         adoptedExpectedElectorate: electorate.value,
@@ -175,11 +172,13 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
       && positive(channel.attemptsPerCompletedShift)
       && nonNegative(channel.allocatedCompletedShifts));
 
+  const remainingActiveDays = positive(draft.programBudget.remainingActiveDays)
+    ? draft.programBudget.remainingActiveDays!
+    : undefined;
+
   const programFeasibility = programInputsComplete
     ? calculateProgramBudgetFeasibility({
-        remainingActiveDays: positive(draft.programBudget.remainingActiveDays)
-          ? draft.programBudget.remainingActiveDays
-          : undefined,
+        remainingActiveDays,
         resourcePools: [{
           resourcePoolId: 'shared-campaign-pool',
           workers: draft.programBudget.resourcePoolWorkers!,
@@ -227,6 +226,7 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
         });
       }
     }
+
     for (const conflict of programFeasibility.value.allocationConflicts) {
       const pool = programFeasibility.value.resourcePools.find((item) => item.resourcePoolId === conflict.resourcePoolId)!;
       feasibilityGaps.push({
@@ -241,20 +241,23 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
       });
     }
 
-    if (nonNegative(draft.programBudget.availableBudget)) {
+    const availableBudget = draft.programBudget.availableBudget;
+    if (nonNegative(availableBudget)) {
       const modeledCost = enabledChannels.reduce((total, [, channel]) => {
-        if (!nonNegative(channel.costPerCompletedShift) || !nonNegative(channel.allocatedCompletedShifts)) return total;
-        return total + channel.costPerCompletedShift * channel.allocatedCompletedShifts;
+        const cost = channel.costPerCompletedShift;
+        const shifts = channel.allocatedCompletedShifts;
+        if (cost === null || shifts === null || !Number.isFinite(cost) || !Number.isFinite(shifts) || cost < 0 || shifts < 0) return total;
+        return total + cost * shifts;
       }, 0);
-      if (modeledCost > draft.programBudget.availableBudget!) {
+      if (modeledCost > availableBudget!) {
         feasibilityGaps.push({
           gapId: 'cost:program',
           constraintType: 'COST',
           strategicMetricKey: 'budget.available',
-          strategicValue: draft.programBudget.availableBudget!,
+          strategicValue: availableBudget!,
           operationalMetricKey: 'budget.modeled_program_cost',
           operationalValue: modeledCost,
-          gap: modeledCost - draft.programBudget.availableBudget!,
+          gap: modeledCost - availableBudget!,
           requiresAcknowledgment: true,
         });
       }
@@ -296,8 +299,36 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
     },
   ];
 
-  const inputs = {
-    campaign: { ...campaign },
+  const channelInputs: Record<string, JsonValue> = {};
+  for (const [channelId, channel] of Object.entries(draft.programBudget.channels) as Array<[ChannelId, ChannelDraft]>) {
+    channelInputs[channelId] = {
+      enabled: channel.enabled,
+      reachableUniverse: channel.reachableUniverse,
+      contactDepthTarget: channel.contactDepthTarget,
+      attemptsPerCompletedShift: channel.attemptsPerCompletedShift,
+      allocatedCompletedShifts: channel.allocatedCompletedShifts,
+      volunteerFlakeRate: channel.volunteerFlakeRate,
+      costPerCompletedShift: channel.costPerCompletedShift,
+    };
+  }
+
+  const inputs: Record<string, JsonValue> = {
+    campaign: {
+      campaignName: campaign.campaignName,
+      office: campaign.office,
+      electionDate: campaign.electionDate,
+      electionType: campaign.electionType,
+      geography: campaign.geography,
+      eligibleVoters: campaign.eligibleVoters,
+      highCount: campaign.highCount,
+      highTurnout: campaign.highTurnout,
+      midCount: campaign.midCount,
+      midTurnout: campaign.midTurnout,
+      lowCount: campaign.lowCount,
+      lowTurnout: campaign.lowTurnout,
+      targetShare: campaign.targetShare,
+      universeMultiplier: campaign.universeMultiplier,
+    },
     programBudget: {
       resourcePoolWorkers: draft.programBudget.resourcePoolWorkers,
       completedShiftsPerWorker: draft.programBudget.completedShiftsPerWorker,
@@ -306,7 +337,7 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
       supportIdEnabled: draft.programBudget.supportIdEnabled,
       supportIdCoverageTarget: draft.programBudget.supportIdCoverageTarget,
       supporterTurnoutRate: draft.programBudget.supporterTurnoutRate,
-      channels: draft.programBudget.channels,
+      channels: channelInputs,
     },
   };
 
