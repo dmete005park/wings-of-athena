@@ -7,15 +7,25 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 
 .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 42px 0 28px; }
 .topbar { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 30px; }
+.header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .eyebrow { margin: 0 0 8px; text-transform: uppercase; letter-spacing: .12em; font-size: .74rem; font-weight: 750; color: #607065; }
 h1 { margin: 0; font-size: clamp(2.4rem, 5vw, 4.8rem); line-height: .95; letter-spacing: -.055em; font-weight: 760; }
 h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.02em; }
 .subhead { max-width: 690px; margin: 16px 0 0; color: #59635c; line-height: 1.55; }
 .engine-badge, .quiet { border: 1px solid #cad0c9; border-radius: 999px; padding: 8px 12px; white-space: nowrap; font-size: .8rem; color: #59635c; background: rgba(255,255,255,.45); }
+
+.campaign-card { margin-bottom: 28px; background: #fffdf7; border: 1px solid #dadbd4; border-radius: 18px; padding: 22px; }
+.setup-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+.setup-field { grid-template-columns: 120px 1fr; }
+.setup-field input, .setup-field select { text-align: left; }
+.text-button { border: 0; background: transparent; color: #5d6a61; cursor: pointer; padding: 8px 0; font-size: .84rem; text-decoration: underline; text-underline-offset: 3px; }
+.text-button:hover { color: #162019; }
+.section-intro { display: flex; justify-content: space-between; align-items: end; gap: 28px; margin-bottom: 14px; }
+.section-intro > p { max-width: 520px; margin: 0; color: #667069; font-size: .9rem; line-height: 1.5; }
 
 .hero-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
 .metric-card { border-radius: 18px; padding: 20px; background: #101713; color: #f7f4e9; min-height: 132px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -26,7 +36,8 @@ h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.02em; }
 .panel { background: #fffdf7; border: 1px solid #dadbd4; border-radius: 18px; padding: 22px; }
 .panel-heading { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding-bottom: 18px; border-bottom: 1px solid #e4e3dc; margin-bottom: 8px; }
 .field { display: grid; grid-template-columns: 1fr minmax(120px, 160px); gap: 18px; align-items: center; padding: 13px 0; border-bottom: 1px solid #ebeae4; font-size: .92rem; }
-.field input { width: 100%; border: 1px solid #cfd3cd; border-radius: 10px; background: white; padding: 10px 11px; text-align: right; color: #162019; }
+.field input, .field select { width: 100%; border: 1px solid #cfd3cd; border-radius: 10px; background: white; padding: 10px 11px; text-align: right; color: #162019; }
+.field select { text-align: left; }
 .segment-row { display: grid; grid-template-columns: 1.4fr .9fr; column-gap: 20px; }
 .percent-input { display: flex; align-items: center; gap: 7px; }
 .percent-input span { color: #6b746e; }
@@ -38,14 +49,17 @@ footer { margin-top: 28px; padding-top: 18px; border-top: 1px solid #d7d7d0; col
 
 @media (max-width: 850px) {
   .hero-grid { grid-template-columns: repeat(2, 1fr); }
-  .workspace { grid-template-columns: 1fr; }
+  .workspace, .setup-grid { grid-template-columns: 1fr; }
+  .section-intro { align-items: flex-start; flex-direction: column; gap: 8px; }
 }
 
 @media (max-width: 560px) {
   .shell { width: min(100% - 20px, 1180px); padding-top: 24px; }
   .topbar { flex-direction: column; }
+  .header-actions { align-items: flex-start; }
   .hero-grid { grid-template-columns: 1fr 1fr; }
   .metric-card { min-height: 112px; padding: 16px; }
   .segment-row { grid-template-columns: 1fr; }
-  .field { grid-template-columns: 1fr 130px; }
+  .field, .setup-field { grid-template-columns: 1fr; gap: 7px; }
+  .field input, .field select { text-align: left; }
 }
