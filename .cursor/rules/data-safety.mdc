@@ -14,6 +14,8 @@ Formulas are public. Numbers derived from real campaigns are not.
 
 NEVER invent empirical values that look like real campaign data. Fixtures use obviously synthetic round numbers (turnout 0.5, universe 10,000). Real values live in private `@wings/calibration-profiles`.
 
+An assistant asked for a "realistic" fixture will generate plausible-looking values — a 62.4% turnout rate, a 14.3% contact rate, a $73.50 per-shift cost. These are indistinguishable from real calibration data. Do not do this. A fixture proves a formula is correct, not that a value is realistic.
+
 ## Never commit
 
 - Calibration values, restricted research, client or campaign data
@@ -24,6 +26,8 @@ NEVER invent empirical values that look like real campaign data. Fixtures use ob
 Run `npm run check:classification` before finishing.
 
 ## Airtable
+
+Airtable is not integrated in this repository yet. Use the `airtable-schema-change` skill only when integration work is underway.
 
 Before changing Airtable-dependent code:
 

@@ -73,7 +73,7 @@ Keep business logic separate from presentation logic where practical.
 
 ## Data
 
-Airtable may serve as an operational data source.
+Airtable may serve as a future operational data source. It is not integrated in this repository yet.
 
 Before changing Airtable-dependent code:
 

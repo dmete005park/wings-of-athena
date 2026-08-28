@@ -32,7 +32,18 @@ A reforecast is a new child plan version with a new version ID and `parentPlanVe
 
 `hash.ts` fingerprints must stay stable across object-key ordering. Any canonicalization change invalidates stored fingerprints — treat as breaking.
 
-Adoption verifies: fingerprint consistency, manager-reviewed fingerprint, section completeness, and current feasibility acknowledgments. Adoption never silently recomputes.
+Adoption verifies four things. Removing any one is a correctness regression:
+
+1. Current canonical input fingerprint matches the saved draft fingerprint.
+2. It matches the fingerprint on every material calculation snapshot.
+3. It matches `expectedInputHash` — the fingerprint of the plan the manager was reviewing when they clicked Adopt. Checks 1 and 2 verify data consistency; only this one verifies the manager saw the version being adopted.
+4. Every material feasibility gap carries a current, non-stale acknowledgment.
+
+Plus: every section marked `requiredForAdoption` is complete. Section requirements are evaluated against the enabled program objective set.
+
+Adoption never silently recomputes. It refuses and reports.
+
+Feasibility acknowledgments store a snapshot plus `gapFingerprint`. If the gap changes, the acknowledgment is stale and adoption fails with `FEASIBILITY_ACK_STALE`. Constraint types: `CAPACITY`, `COST`, `REACHABILITY`, `ALLOCATION`, `OTHER`.
 
 Route adoption errors using structured context on `PlanAdoptionError`. Do not parse error strings in the UI.
 
@@ -48,7 +59,9 @@ Progressive disclosure — three levels:
 
 390px is the primary layout. Full-width buttons, 44px touch targets, single-column cards, no horizontal overflow.
 
-Status: ON TRACK (green), WATCH (amber), AT RISK (red), NO DATA (hollow gray ring — never performance-positive).
+Status: ON TRACK (green), WATCH (amber), AT RISK (red), NO DATA (hollow gray ring — never performance-positive). Engine `UNAVAILABLE` displays as NO DATA with a hollow gray ring — never a filled dot, never green.
+
+Every status is tappable and names its triggering rule.
 
 No localStorage outside `src/storage/`. No health scores, gauges, or composite status.
 

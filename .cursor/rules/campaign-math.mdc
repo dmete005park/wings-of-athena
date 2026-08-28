@@ -10,7 +10,12 @@ Treat campaign calculations as business-critical logic. Use the `campaign-calcul
 
 ## Purity and determinism
 
-Pure TypeScript. No side effects, no I/O, no `Date.now()`, no `Math.random()`, no randomness. Same inputs must always produce same outputs.
+Pure TypeScript. No side effects, no I/O, no randomness. Every function takes inputs and returns data — it never writes anywhere.
+
+- No imports from React, Netlify, storage, `fetch`, `fs`, or any database client.
+- No reads of `Date.now()`, `Math.random()`, `process.env`, or `localStorage`. Pass the current date in as a parameter when needed.
+
+Same inputs must always produce same outputs.
 
 Never add a model, heuristic, scoring function, or AI call. Status is rule precedence over named alerts, not a composite score.
 
@@ -39,7 +44,12 @@ Before changing campaign math:
 
 Formula IDs carry a version suffix (`victory.vote_goal.v0.2`). Behavior changes require a new formula ID and `MATH_ENGINE_VERSION` bump in `index.ts`.
 
-`calibration.ts` defines profile SHAPE only — no empirical values. Real estimates live in private `@wings/calibration-profiles`.
+`calibration.ts` defines profile SHAPE only — it MUST NOT contain values.
+
+- `NULL_CALIBRATION_PROFILE` stays empty. Do not populate it with "sensible defaults."
+- Empirical estimates and alert thresholds belong in private `@wings/calibration-profiles`, passed in at runtime. The engine never fetches a profile; it receives one.
+
+Every assumption carries an `EvidenceClass`. `PRODUCT_PLACEHOLDER` means provisional and the UI must label it. `isCustomerFacingPermitted()` gates restricted sources — never bypass it.
 
 NEVER hard-code a strategic cushion. Target share defaults to the mathematical 50% baseline.
 
@@ -47,7 +57,9 @@ NEVER hard-code a strategic cushion. Target share defaults to the mathematical 5
 
 Strategic Desired, Reachable, and Capacity-Supported universes are distinct stages. Reachability gap and capacity gap are reported separately.
 
-Shared resource pools with explicit channel allocations. Two channels sharing a pool MUST NOT each see the full pool. See `docs/PROGRAM_BUDGET_CAPACITY_MODEL.md` before touching `programBudget.ts` or `capacity.ts`.
+Shared resource pools with explicit channel allocations. Two channels sharing a pool MUST NOT each see the full pool. Over-allocation is an `ALLOCATION` constraint, distinct from a `CAPACITY` shortfall. See `docs/PROGRAM_BUDGET_CAPACITY_MODEL.md` before touching `programBudget.ts` or `capacity.ts`.
+
+Where a flake rate is modeled, distinguish completed shifts from scheduled shifts. Calendar-facing numbers use scheduled.
 
 ## Tests
 

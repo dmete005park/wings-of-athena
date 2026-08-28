@@ -7,6 +7,8 @@ description: Changes Airtable tables, fields, relationships, record shapes, or s
 
 Use for changes involving Airtable tables, fields, relationships, record shapes, or synchronization logic.
 
+**Scope:** Airtable is not integrated in this repository yet. Use this skill only when Airtable integration code exists or is being added.
+
 Read first: `AGENTS.md`, `docs/DATA_CLASSIFICATION.md`, and `.cursor/rules/data-safety.mdc`. Never copy client, voter, or casework data into Airtable or this repo.
 
 ## Before making changes
