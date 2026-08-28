@@ -5,6 +5,7 @@ const {
   assertDraftMutable,
   assertStoredPlanReplaceable,
   buildPlanVersionRecord,
+  canonicalizeJsonValue,
   computeFeasibilityGapFingerprint,
   computeInputHash,
   createReforecastDraftRecord,
@@ -94,11 +95,34 @@ test('input hash is stable across object key ordering', () => {
   assert.equal(a, b);
 });
 
+test('empty plan inputs produce a stable sha256 fingerprint', () => {
+  assert.equal(
+    computeInputHash({}),
+    'sha256:38c6b453297ca0b990df78c31d9bf8ddaa782c7881347ac43475a8c4403d1757',
+  );
+});
+
 test('input hash uses code-unit key ordering, not localeCompare', () => {
-  const a = computeInputHash({ Z: 1, a: 2 });
-  const b = computeInputHash({ a: 2, Z: 1 });
-  assert.equal(a, b);
-  assert.match(a, /^fnv1a32:/);
+  const keys = ['i', 'İ', 'z'];
+  const codeUnitOrder = [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const localeOrder = [...keys].sort((a, b) => a.localeCompare(b, 'tr'));
+  assert.notDeepEqual(codeUnitOrder, localeOrder, 'fixture keys must diverge under Turkish localeCompare');
+
+  const inputs = { i: 1, İ: 2, z: 3 };
+  const canonical = canonicalizeJsonValue(inputs);
+  assert.equal(canonical, 'obj:{"i":num:1,"z":num:3,"İ":num:2}');
+  assert.equal(
+    computeInputHash(inputs),
+    'sha256:09506d87b46d6ce53858784f076ef9eaf2d3085625b7426017b52035e6a15970',
+  );
+});
+
+test('type prefixes keep number-space and string-space distinct', () => {
+  assert.notEqual(computeInputHash({ value: null }), computeInputHash({ value: Number.NaN }));
+  assert.notEqual(computeInputHash({ value: Number.NaN }), computeInputHash({ value: '__NaN__' }));
+  assert.notEqual(canonicalizeJsonValue(Number.NaN), canonicalizeJsonValue('__NaN__'));
+  assert.equal(canonicalizeJsonValue('__NaN__'), 'str:"__NaN__"');
+  assert.equal(canonicalizeJsonValue(Number.NaN), 'num:NaN');
 });
 
 test('non-finite numbers do not canonicalize identically to null', () => {
@@ -128,7 +152,7 @@ test('plan builder serializes incomplete drafts and reports exact missing requir
     ],
   );
 
-  assert.match(build.record.inputHash, /^fnv1a32:/);
+  assert.match(build.record.inputHash, /^sha256:[0-9a-f]{64}$/);
   assert.equal(build.readyForAdoption, false);
   assert.deepEqual(build.missingRequiredKeys, [
     'program_budget.resourcePools',
@@ -156,7 +180,7 @@ test('adoption stores adoption metadata when snapshots and reviewed inputs are f
   const adopted = adoptPlanRecord(plan, adoptionMeta(plan));
   assert.equal(adopted.status, 'ADOPTED');
   assert.equal(adopted.adoptedBy, 'manager-1');
-  assert.match(adopted.inputHash, /^fnv1a32:/);
+  assert.match(adopted.inputHash, /^sha256:[0-9a-f]{64}$/);
 });
 
 test('adoption refuses when manager reviewed a different input fingerprint', () => {
