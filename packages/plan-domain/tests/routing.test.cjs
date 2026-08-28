@@ -68,32 +68,32 @@ test('support-id fields are optional until SUPPORT_ID objective is enabled', () 
   assert.deepEqual(program.missingKeys, ['supportIdCoverageTarget', 'supporterTurnoutRate']);
 });
 
-test('enabled objective set is canonical plan input and changes the fingerprint', () => {
-  const base = buildPlanVersionRecord(draftPlan(), definitions, []);
-  const support = buildPlanVersionRecord(draftPlan(), definitions, ['SUPPORT_ID']);
+test('enabled objective set is canonical plan input and changes the fingerprint', async () => {
+  const base = await buildPlanVersionRecord(draftPlan(), definitions, []);
+  const support = await buildPlanVersionRecord(draftPlan(), definitions, ['SUPPORT_ID']);
   assert.notEqual(base.record.inputHash, support.record.inputHash);
   assert.deepEqual(base.record.inputs.enabledObjectiveIds, []);
   assert.deepEqual(support.record.inputs.enabledObjectiveIds, ['SUPPORT_ID']);
 });
 
-test('stale acknowledgment returns routable section and old-vs-new gap snapshots', () => {
+test('stale acknowledgment returns routable section and old-vs-new gap snapshots', async () => {
   const oldGap = {
     gapId: 'doors-capacity', constraintType: 'CAPACITY', strategicMetricKey: 'universe.reachable', strategicValue: 30100,
     operationalMetricKey: 'universe.capacity_supported', operationalValue: 26800, gap: 3300, requiresAcknowledgment: true,
   };
   const newGap = { ...oldGap, operationalValue: 24100, gap: 6000 };
-  const built = buildPlanVersionRecord({
+  const built = await buildPlanVersionRecord({
     ...draftPlan(),
     feasibilityGaps: [newGap],
     feasibilityAcknowledgments: [{
-      acknowledgmentId: 'ack-1', gapId: oldGap.gapId, gapFingerprint: computeFeasibilityGapFingerprint(oldGap),
+      acknowledgmentId: 'ack-1', gapId: oldGap.gapId, gapFingerprint: await computeFeasibilityGapFingerprint(oldGap),
       constraintType: oldGap.constraintType, strategicMetricKey: oldGap.strategicMetricKey, strategicValue: oldGap.strategicValue,
       operationalMetricKey: oldGap.operationalMetricKey, operationalValue: oldGap.operationalValue, gap: oldGap.gap,
       reason: 'Staffing constraint', actorId: 'manager-1', acknowledgedAt: '2026-08-27T10:00:00Z',
     }],
   }, definitions, []);
 
-  assert.throws(
+  await assert.rejects(
     () => adoptPlanRecord(built.record, { actorId: 'manager-1', adoptedAt: '2026-08-27T11:00:00Z', expectedInputHash: built.record.inputHash }),
     (error) => {
       assert.ok(error instanceof PlanAdoptionError);
@@ -107,7 +107,7 @@ test('stale acknowledgment returns routable section and old-vs-new gap snapshots
   );
 });
 
-test('adoption readiness returns all current blockers instead of only the first', () => {
+test('adoption readiness returns all current blockers instead of only the first', async () => {
   const gapA = {
     gapId: 'doors-capacity', constraintType: 'CAPACITY', strategicMetricKey: 'universe.reachable', strategicValue: 1000,
     operationalMetricKey: 'universe.capacity_supported', operationalValue: 800, gap: 200, requiresAcknowledgment: true,
@@ -116,14 +116,14 @@ test('adoption readiness returns all current blockers instead of only the first'
     gapId: 'phones-reachability', constraintType: 'REACHABILITY', strategicMetricKey: 'universe.strategic_desired', strategicValue: 1000,
     operationalMetricKey: 'universe.reachable', operationalValue: 700, gap: 300, requiresAcknowledgment: true,
   };
-  const built = buildPlanVersionRecord({ ...draftPlan(), feasibilityGaps: [gapA, gapB] }, [
+  const built = await buildPlanVersionRecord({ ...draftPlan(), feasibilityGaps: [gapA, gapB] }, [
     { sectionKey: 'campaign_setup', requiredWhen: { type: 'ALWAYS' }, fields: [{ key: 'campaignName', present: false, requiredWhen: { type: 'ALWAYS' } }] },
     definitions[1],
   ], []);
 
-  const staleInputHash = computeInputHash({ electorate: 999 });
+  const staleInputHash = await computeInputHash({ electorate: 999 });
   built.record.calculations[0].inputHash = staleInputHash;
-  const readiness = evaluatePlanAdoptionReadiness(built.record, staleInputHash);
+  const readiness = await evaluatePlanAdoptionReadiness(built.record, staleInputHash);
 
   assert.equal(readiness.ready, false);
   assert.ok(readiness.blockers.some((blocker) => blocker.code === 'PLAN_SECTION_INCOMPLETE'));
