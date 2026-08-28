@@ -94,6 +94,25 @@ test('input hash is stable across object key ordering', () => {
   assert.equal(a, b);
 });
 
+test('input hash uses code-unit key ordering, not localeCompare', () => {
+  const a = computeInputHash({ Z: 1, a: 2 });
+  const b = computeInputHash({ a: 2, Z: 1 });
+  assert.equal(a, b);
+  assert.match(a, /^fnv1a32:/);
+});
+
+test('non-finite numbers do not canonicalize identically to null', () => {
+  const nullHash = computeInputHash({ value: null });
+  const nanHash = computeInputHash({ value: Number.NaN });
+  const infinityHash = computeInputHash({ value: Infinity });
+  const negInfinityHash = computeInputHash({ value: -Infinity });
+  assert.notEqual(nullHash, nanHash);
+  assert.notEqual(nullHash, infinityHash);
+  assert.notEqual(nullHash, negInfinityHash);
+  assert.notEqual(nanHash, infinityHash);
+  assert.notEqual(infinityHash, negInfinityHash);
+});
+
 test('plan builder serializes incomplete drafts and reports exact missing required keys', () => {
   const source = basePlan();
   const { inputHash, sectionStatuses, calculations, ...draft } = source;

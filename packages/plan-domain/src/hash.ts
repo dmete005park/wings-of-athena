@@ -1,9 +1,22 @@
 import { FeasibilityGapRecord, JsonValue } from './types';
 
+function compareKeys(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function canonicalizePrimitive(value: JsonValue): string {
+  if (typeof value === 'number') {
+    if (Number.isNaN(value)) return '"__NaN__"';
+    if (value === Infinity) return '"__Infinity__"';
+    if (value === -Infinity) return '"__-Infinity__"';
+  }
+  return JSON.stringify(value);
+}
+
 function canonicalize(value: JsonValue): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (value === null || typeof value !== 'object') return canonicalizePrimitive(value);
   if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`;
-  const entries = Object.entries(value).sort(([a], [b]) => a.localeCompare(b));
+  const entries = Object.entries(value).sort(([a], [b]) => compareKeys(a, b));
   return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonicalize(child)}`).join(',')}}`;
 }
 
