@@ -2,8 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // Resolve a repo path relative to this config without pulling in Node type
-// definitions (`@types/node` is not a dependency of this app). `URL` and
-// `import.meta.url` are standard, so this type-checks under the app's tsconfig.
+// definitions (`@types/node` is not a dependency of this app, and `tsc -b`
+// type-checks this file). `URL` and `import.meta.url` are standard, so this
+// type-checks under the app's tsconfig.
+//
+// Caveat: on Windows `.pathname` yields a leading-slash path (`/C:/...`), which
+// Vite normalizes in practice but is the known failure mode for this pattern.
+// If `@types/node` is ever added, prefer `fileURLToPath(new URL(...))`.
 const fromHere = (relativePath: string) => new URL(relativePath, import.meta.url).pathname;
 
 export default defineConfig({
