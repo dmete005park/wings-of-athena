@@ -6,7 +6,7 @@ import {
   type KpiPaceResult,
   type WinningPathStatus,
 } from '@wings/math-engine';
-import type { JsonValue, PlanVersionRecord, ScenarioName } from '@wings/plan-domain';
+import type { FeasibilityAcknowledgment, JsonValue, PlanVersionRecord, ScenarioName } from '@wings/plan-domain';
 import {
   emptyActuals,
   getActuals,
@@ -220,7 +220,63 @@ export default function CommandCenter({
           </div>
         </details>
       )}
+
+      <AcceptedConstraints acknowledgments={plan.feasibilityAcknowledgments} />
     </section>
+  );
+}
+
+function constraintWord(type: FeasibilityAcknowledgment['constraintType']): string {
+  switch (type) {
+    case 'CAPACITY': return 'Capacity';
+    case 'COST': return 'Cost';
+    case 'REACHABILITY': return 'Reachability';
+    case 'ALLOCATION': return 'Allocation';
+    default: return 'Constraint';
+  }
+}
+
+function formatAckDate(iso: string): string {
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime())
+    ? iso
+    : parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+// Level-2 context: the acknowledgments the manager accepted at adoption, read
+// from the adopted record so the decision survives into the running campaign —
+// constraint by cause, the numbers at the time of acceptance, and the reason.
+// Placed below the pacing cards and collapsed so it never competes with status.
+function AcceptedConstraints({ acknowledgments }: { acknowledgments: FeasibilityAcknowledgment[] }) {
+  if (!acknowledgments || acknowledgments.length === 0) return null;
+  return (
+    <details className="cc-acks">
+      <summary>Accepted constraints ({acknowledgments.length})</summary>
+      <div className="cc-acks-list">
+        {acknowledgments.map((ack) => (
+          <article key={ack.acknowledgmentId} className="cc-ack">
+            <p className="cc-ack-lead">
+              <strong>{constraintWord(ack.constraintType)} constraint</strong> accepted {formatAckDate(ack.acknowledgedAt)}.
+            </p>
+            <dl className="cc-ack-nums">
+              <div>
+                <dt>Strategic <span className="cc-mk">{ack.strategicMetricKey}</span></dt>
+                <dd className="tabular">{num.format(ack.strategicValue)}</dd>
+              </div>
+              <div>
+                <dt>Operational <span className="cc-mk">{ack.operationalMetricKey}</span></dt>
+                <dd className="tabular">{num.format(ack.operationalValue)}</dd>
+              </div>
+              <div>
+                <dt>Gap at acceptance</dt>
+                <dd className="tabular">{num.format(ack.gap)}</dd>
+              </div>
+            </dl>
+            <p className="cc-ack-reason">Manager reason: {ack.reason}</p>
+          </article>
+        ))}
+      </div>
+    </details>
   );
 }
 

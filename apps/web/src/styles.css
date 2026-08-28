@@ -172,6 +172,18 @@ summary { cursor: pointer; font-weight: 500; }
 .cc-ontrack summary { color: #4f5b53; font-weight: 500; }
 .cc-ontrack .cc-cards { margin-top: 12px; }
 
+.cc-acks { background: #fffdf7; border: 1px solid #e4e3dc; border-radius: 12px; padding: 12px 16px; }
+.cc-acks summary { color: #4f5b53; font-weight: 500; }
+.cc-acks-list { display: grid; gap: 12px; margin-top: 12px; }
+.cc-ack { border: 1px solid #ebeae4; border-radius: 10px; padding: 14px; }
+.cc-ack-lead { margin: 0 0 8px; font-size: .9rem; }
+.cc-ack-nums { margin: 0; display: grid; gap: 6px; }
+.cc-ack-nums > div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.cc-ack-nums dt { color: #6b746e; font-size: .78rem; }
+.cc-ack-nums dd { margin: 0; font-size: .9rem; font-weight: 500; }
+.cc-mk { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: .7rem; color: #8d978f; margin-left: 4px; overflow-wrap: anywhere; }
+.cc-ack-reason { margin: 10px 0 0; font-size: .85rem; color: #4f5b53; }
+
 .cc-form { margin: 0; }
 .cc-form-note { margin: 0 0 12px; color: #6b746e; font-size: .8rem; }
 .cc-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
