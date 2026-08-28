@@ -9,6 +9,7 @@ export * from './objectives';
 export * from './capacity';
 export * from './programBudget';
 export * from './pacing';
+export * from './kpiPacing';
 export * from './alerts';
 export * from './metricRegistry';
 export * from './assumptionRegistry';

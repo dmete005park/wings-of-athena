@@ -21,6 +21,7 @@ import {
 } from './planBuilder';
 import { FIELD_GUIDES, type FieldGuide } from './fieldGuides';
 import { isProductionDeploy, wingsDataMode, wingsDeployContext } from './deployContext';
+import CommandCenter from './CommandCenter';
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const formatMoney = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -95,6 +96,7 @@ export default function App() {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const planStore = useMemo(() => new LocalPlanStore(), []);
   const campaignId = useMemo(getCampaignId, []);
+  const [view, setView] = useState<'PLAN' | 'COMMAND'>('PLAN');
   const hasBuiltOnce = useRef(false);
   const [built, setBuilt] = useState<Awaited<ReturnType<typeof buildScenarioPlan>> | null>(null);
   const [displayReadiness, setDisplayReadiness] = useState<AdoptionReadiness>({ ready: false, blockers: [] });
@@ -291,12 +293,10 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="flow-nav" aria-label="Planning workflow">
-        <a href="#campaign-setup" className={sectionComplete('campaign_setup') ? 'nav-complete' : ''}>Campaign</a>
-        <a href="#path-to-victory" className={sectionComplete('path_to_victory') ? 'nav-complete' : ''}>Path to Victory</a>
-        <a href="#program-budget" className={sectionComplete('program_budget') ? 'nav-complete' : ''}>Program & Budget</a>
-        <a href="#adopt-plan" className={storedPlan && displayReadiness.ready ? 'nav-complete' : ''}>Adopt</a>
-      </nav>
+      <div className="view-switch" role="tablist" aria-label="Screen">
+        <button type="button" role="tab" aria-selected={view === 'PLAN'} className={view === 'PLAN' ? 'view-active' : ''} onClick={() => setView('PLAN')}>Plan</button>
+        <button type="button" role="tab" aria-selected={view === 'COMMAND'} className={view === 'COMMAND' ? 'view-active' : ''} onClick={() => setView('COMMAND')}>Command Center</button>
+      </div>
 
       <section className="scenario-bar" aria-label="Scenario selection">
         <div>
@@ -309,6 +309,18 @@ export default function App() {
           ))}
         </div>
       </section>
+
+      {view === 'COMMAND' && (
+        <CommandCenter plan={storedPlan} planVersionId={identity.planVersionId} scenario={scenario} />
+      )}
+
+      {view === 'PLAN' && (<>
+      <nav className="flow-nav" aria-label="Planning workflow">
+        <a href="#campaign-setup" className={sectionComplete('campaign_setup') ? 'nav-complete' : ''}>Campaign</a>
+        <a href="#path-to-victory" className={sectionComplete('path_to_victory') ? 'nav-complete' : ''}>Path to Victory</a>
+        <a href="#program-budget" className={sectionComplete('program_budget') ? 'nav-complete' : ''}>Program & Budget</a>
+        <a href="#adopt-plan" className={storedPlan && displayReadiness.ready ? 'nav-complete' : ''}>Adopt</a>
+      </nav>
 
       <section id="campaign-setup" className="campaign-card" aria-label="Campaign setup">
         <div className="panel-heading">
@@ -441,6 +453,7 @@ export default function App() {
           <button className="primary-button" type="button" onClick={adoptPlan} disabled={!storedPlan || !built || planIsAdopted || planChangedSinceSave}>Adopt</button>
         </div>
       </section>
+      </>)}
     </main>
   );
 }
