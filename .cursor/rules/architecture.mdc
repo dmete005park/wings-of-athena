@@ -19,7 +19,7 @@ netlify/functions         Server-side integration boundary
 - `packages/math-engine` is pure. It MUST NOT import React, Netlify, a database client, storage, or network code. Nothing may import from `apps/web` into a package.
 - Math-engine computes. Plan-domain assembles and verifies. UI renders. Never move lifecycle logic into math-engine.
 - Plan-domain may depend on `@wings/math-engine` and `PlanStore`. It MUST NOT depend on React, Netlify, or any concrete database client.
-- Screens edit draft parts. They NEVER build a `PlanVersionRecord` — that is `builder.ts` in `@wings/plan-domain` only.
+- Screens edit draft parts. They NEVER build a `PlanVersionRecord`, input fingerprint, or calculation snapshot — `builder.ts` in `@wings/plan-domain` is the only producer. A screen that builds its own record or hash silently overwrites inputs owned by other screens.
 
 ## Plan lifecycle
 
@@ -27,6 +27,8 @@ An ADOPTED plan version is immutable. Enforced in two places — both must stay:
 
 1. Reject an incoming draft that targets an adopted plan.
 2. Reject a write whose ID matches an already-adopted stored record.
+
+The second check exists because the first alone allows a caller to reuse an adopted ID and overwrite it — the fresh draft does not *target* an adopted plan, so check 1 passes. Do not remove check 2 as redundant.
 
 A reforecast is a new child plan version with a new version ID and `parentPlanVersionId`. It never mutates its parent.
 
