@@ -573,9 +573,105 @@ function formatDepth(depth: number): string {
   return `${rounded}`.replace(/\.0$/, '');
 }
 
+function formatQty(value: number | null): string {
+  return value == null ? '—' : formatNumber.format(value);
+}
+
 function OutreachChain({ chain }: { chain: OutreachDerivation }) {
+  const hasVotesNeed = chain.votes != null && chain.votesNeeded != null;
+  const hasRequired = chain.requiredIds != null
+    || chain.requiredContacts != null
+    || chain.requiredAttempts != null
+    || chain.requiredShifts != null;
+  const hasBreakEven = chain.breakEvenContactRate != null
+    || chain.breakEvenIdConversionRate != null
+    || chain.breakEvenAttemptsPerShift != null;
+
   return (
-    <div className="conversion-chain" aria-label="Attempts to votes">
+    <div className="conversion-chain" aria-label="Votes produced against votes needed">
+      {hasVotesNeed ? (
+        <p className="conversion-level-one">
+          <strong className="tabular">{formatNumber.format(chain.votes!)} of {formatNumber.format(chain.votesNeeded!)} votes</strong>
+          {' '}this program produces against the vote need.
+        </p>
+      ) : (
+        <ProducedForwardSteps chain={chain} />
+      )}
+      {(hasVotesNeed || hasRequired || hasBreakEven) && (
+        <details className="conversion-level-two">
+          <summary>Produced and required</summary>
+          <table className="conversion-compare">
+            <thead>
+              <tr>
+                <th scope="col" />
+                <th scope="col">Produced</th>
+                <th scope="col">Required</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(chain.shifts != null || chain.requiredShifts != null) && (
+                <tr>
+                  <th scope="row">Shifts</th>
+                  <td className="tabular">{formatQty(chain.shifts)}</td>
+                  <td className="tabular">{formatQty(chain.requiredShifts)}</td>
+                </tr>
+              )}
+              <tr>
+                <th scope="row">Attempts</th>
+                <td className="tabular">{formatQty(chain.attempts)}</td>
+                <td className="tabular">{formatQty(chain.requiredAttempts)}</td>
+              </tr>
+              <tr>
+                <th scope="row">Contacts</th>
+                <td className="tabular">{formatQty(chain.contacts)}</td>
+                <td className="tabular">{formatQty(chain.requiredContacts)}</td>
+              </tr>
+              {(chain.ids != null || chain.requiredIds != null) && (
+                <tr>
+                  <th scope="row">IDs</th>
+                  <td className="tabular">{formatQty(chain.ids)}</td>
+                  <td className="tabular">{formatQty(chain.requiredIds)}</td>
+                </tr>
+              )}
+              {hasVotesNeed && (
+                <tr>
+                  <th scope="row">Votes</th>
+                  <td className="tabular">{formatQty(chain.votes)}</td>
+                  <td className="tabular">{formatQty(chain.votesNeeded)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <p className="conversion-derived-note">
+            {formatNumber.format(chain.uniqueReachTarget)} unique reach × {formatDepth(chain.contactDepthTarget)} depth
+            {chain.attemptsPerShift != null ? ` · ${formatNumber.format(chain.attemptsPerShift)} attempts per shift` : ''}
+            {' · '}{formatRate(chain.contactRate)} contact rate
+            {chain.conversionRate != null ? ` · ${formatRate(chain.conversionRate)} conversion` : ''}
+            {chain.supporterTurnoutRate != null ? ` · ${formatRate(chain.supporterTurnoutRate)} supporter turnout` : ''}
+          </p>
+          {hasBreakEven && (
+            <div className="conversion-breakeven">
+              <p>Rates that would meet the need at this program size. Arithmetic on the values you entered, not a recommended action.</p>
+              {chain.breakEvenContactRate != null && (
+                <p>Contact rate: {formatRate(chain.breakEvenContactRate)}</p>
+              )}
+              {chain.breakEvenIdConversionRate != null && (
+                <p>ID conversion: {formatRate(chain.breakEvenIdConversionRate)}</p>
+              )}
+              {chain.breakEvenAttemptsPerShift != null && (
+                <p>Attempts per shift: {formatNumber.format(chain.breakEvenAttemptsPerShift)}</p>
+              )}
+            </div>
+          )}
+        </details>
+      )}
+    </div>
+  );
+}
+
+function ProducedForwardSteps({ chain }: { chain: OutreachDerivation }) {
+  return (
+    <>
       {chain.shifts != null && (
         <div className="conversion-step">
           <span className="conversion-qty tabular">{formatNumber.format(chain.shifts)} shifts</span>
@@ -602,13 +698,7 @@ function OutreachChain({ chain }: { chain: OutreachDerivation }) {
           <span className="conversion-note">{formatRate(chain.supporterTurnoutRate)} supporter turnout</span>
         </div>
       )}
-      {chain.votesNeeded != null && (
-        <div className="conversion-step conversion-need">
-          <span className="conversion-qty" />
-          <span className="conversion-note">need {formatNumber.format(chain.votesNeeded)}</span>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 

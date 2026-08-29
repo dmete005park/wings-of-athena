@@ -126,6 +126,8 @@ test('each snapshot inputs cover the formula parameters actually used', async ()
  * unique reach 1000 × depth 2 → 2000 attempts; × 0.5 contact rate → 1000 contacts.
  * 2000 attempts at 40 per shift → 50 shifts.
  * Support-ID funnel at 0.5 conversion and 0.5 turnout → 500 IDs, 250 votes; need 200.
+ * Inverse: required IDs 400, contacts 800, attempts 1600, shifts 40.
+ * Break-even at this program size: contact rate 0.4, conversion 0.4, 32 attempts/shift.
  */
 function knownOutreachDraft() {
   const draft = knownDraft({ type: 'PLURALITY', expectedWinningShare: 0.4 }, 0.4);
@@ -158,11 +160,17 @@ test('outreach chain uses engine functions and records snapshots for a known inp
   assert.equal(chain.channelId, 'doors');
   assert.equal(chain.attempts, 2000);
   assert.equal(chain.contacts, 1000);
-  assert.equal(chain.attemptsForContactGoal, 2000);
   assert.equal(chain.shifts, 50);
   assert.equal(chain.ids, 500);
   assert.equal(chain.votes, 250);
   assert.equal(chain.votesNeeded, 200);
+  assert.equal(chain.requiredIds, 400);
+  assert.equal(chain.requiredContacts, 800);
+  assert.equal(chain.requiredAttempts, 1600);
+  assert.equal(chain.requiredShifts, 40);
+  assert.equal(chain.breakEvenContactRate, 0.4);
+  assert.equal(chain.breakEvenIdConversionRate, 0.4);
+  assert.equal(chain.breakEvenAttemptsPerShift, 32);
 
   const attemptsSnap = snapshot(build.record, 'outreach.attempts_goal.doors');
   assert.equal(attemptsSnap.formulaId, 'outreach.attempts.v0.2');
@@ -180,10 +188,54 @@ test('outreach chain uses engine functions and records snapshots for a known inp
   assert.equal(contactsSnap.inputs.perAttemptContactRate, 0.5);
   assert.equal(contactsSnap.inputs.reachableUniverse, 1200);
 
-  const inverseSnap = snapshot(build.record, 'outreach.attempts_for_contact_goal.doors');
-  assert.equal(inverseSnap.modeledValue, 2000);
-  assert.equal(inverseSnap.inputs.desiredSuccessfulContacts, 1000);
+  const inverseSnap = snapshot(build.record, 'outreach.attempts_required.doors');
+  assert.equal(inverseSnap.formulaId, 'outreach.attempts_required.v0.2');
+  assert.equal(inverseSnap.modeledValue, 1600);
+  assert.equal(inverseSnap.inputs.desiredSuccessfulContacts, 800);
   assert.equal(inverseSnap.inputs.perAttemptContactRate, 0.5);
+  assert.equal(snapshot(build.record, 'outreach.attempts_for_contact_goal.doors'), undefined);
+
+  const requiredIdsSnap = snapshot(build.record, 'outreach.ids_required.doors');
+  assert.equal(requiredIdsSnap.formulaId, 'outreach.ids_required.v0.2');
+  assert.equal(requiredIdsSnap.modeledValue, 400);
+  assert.equal(requiredIdsSnap.inputs.requiredVotes, 200);
+  assert.equal(requiredIdsSnap.inputs.supporterTurnoutRate, 0.5);
+
+  const requiredContactsSnap = snapshot(build.record, 'outreach.contacts_required.doors');
+  assert.equal(requiredContactsSnap.formulaId, 'outreach.contacts_required.v0.2');
+  assert.equal(requiredContactsSnap.modeledValue, 800);
+  assert.equal(requiredContactsSnap.inputs.requiredIds, 400);
+  assert.equal(requiredContactsSnap.inputs.idConversionRate, 0.5);
+
+  const requiredShiftsSnap = snapshot(build.record, 'capacity.shifts_required_for_vote_goal.doors');
+  assert.equal(requiredShiftsSnap.formulaId, 'capacity.shifts_required_for_vote_goal.v0.2');
+  assert.equal(requiredShiftsSnap.modeledValue, 40);
+  assert.equal(requiredShiftsSnap.inputs.requiredAttempts, 1600);
+  assert.equal(requiredShiftsSnap.inputs.attemptsPerCompletedShift, 40);
+
+  const breakEvenContactSnap = snapshot(build.record, 'program.breakeven.contact_rate.doors');
+  assert.equal(breakEvenContactSnap.formulaId, 'program.breakeven.contact_rate.v0.2');
+  assert.equal(breakEvenContactSnap.modeledValue, 0.4);
+  assert.equal(breakEvenContactSnap.inputs.votesNeeded, 200);
+  assert.equal(breakEvenContactSnap.inputs.attempts, 2000);
+  assert.equal(breakEvenContactSnap.inputs.idConversionRate, 0.5);
+  assert.equal(breakEvenContactSnap.inputs.supporterTurnoutRate, 0.5);
+
+  const breakEvenConversionSnap = snapshot(build.record, 'program.breakeven.id_conversion_rate.doors');
+  assert.equal(breakEvenConversionSnap.formulaId, 'program.breakeven.id_conversion_rate.v0.2');
+  assert.equal(breakEvenConversionSnap.modeledValue, 0.4);
+  assert.equal(breakEvenConversionSnap.inputs.votesNeeded, 200);
+  assert.equal(breakEvenConversionSnap.inputs.contacts, 1000);
+  assert.equal(breakEvenConversionSnap.inputs.supporterTurnoutRate, 0.5);
+
+  const breakEvenProductivitySnap = snapshot(build.record, 'program.breakeven.attempts_per_shift.doors');
+  assert.equal(breakEvenProductivitySnap.formulaId, 'program.breakeven.attempts_per_shift.v0.2');
+  assert.equal(breakEvenProductivitySnap.modeledValue, 32);
+  assert.equal(breakEvenProductivitySnap.inputs.votesNeeded, 200);
+  assert.equal(breakEvenProductivitySnap.inputs.shifts, 50);
+  assert.equal(breakEvenProductivitySnap.inputs.perAttemptContactRate, 0.5);
+  assert.equal(breakEvenProductivitySnap.inputs.idConversionRate, 0.5);
+  assert.equal(breakEvenProductivitySnap.inputs.supporterTurnoutRate, 0.5);
 
   const shiftsSnap = snapshot(build.record, 'capacity.completed_shifts_required.doors');
   assert.equal(shiftsSnap.formulaId, 'capacity.shifts.v0.2');
