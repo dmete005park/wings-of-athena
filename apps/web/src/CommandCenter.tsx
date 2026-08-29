@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   classifyKpiPace,
   deriveWinningPathStatus,
+  metricDefinition,
   type DecisionAlert,
   type KpiPaceResult,
   type WinningPathStatus,
@@ -243,6 +244,31 @@ function formatAckDate(iso: string): string {
     : parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+// Level-2 labels come from METRIC_REGISTRY. Channel-suffixed keys
+// (universe.capacity_supported.doors) resolve by stripping trailing segments.
+// Unregistered universe.* keys (reachable by channel) inherit the strategic
+// universe label. Any other miss keeps the raw key rather than inventing a name.
+function lookupMetric(key: string) {
+  let candidate = key;
+  for (;;) {
+    const found = metricDefinition(candidate);
+    if (found) return found;
+    const dot = candidate.lastIndexOf('.');
+    if (dot <= 0) return undefined;
+    candidate = candidate.slice(0, dot);
+  }
+}
+
+function metricLabel(key: string): string {
+  const def = lookupMetric(key)
+    ?? (key.startsWith('universe.') ? metricDefinition('universe.strategic_desired') : undefined);
+  if (!def) return key;
+  const hyphenated = def.displayName.match(/[A-Za-z]+(?:-[A-Za-z]+)+/);
+  if (hyphenated) return hyphenated[0].replace(/-/g, ' ').toLowerCase();
+  const words = def.displayName.trim().split(/\s+/);
+  return (words[words.length - 1] ?? def.displayName).toLowerCase();
+}
+
 // Level-2 context: the acknowledgments the manager accepted at adoption, read
 // from the adopted record so the decision survives into the running campaign —
 // constraint by cause, the numbers at the time of acceptance, and the reason.
@@ -258,20 +284,10 @@ function AcceptedConstraints({ acknowledgments }: { acknowledgments: Feasibility
             <p className="cc-ack-lead">
               <strong>{constraintWord(ack.constraintType)} constraint</strong> accepted {formatAckDate(ack.acknowledgedAt)}.
             </p>
-            <dl className="cc-ack-nums">
-              <div>
-                <dt>Strategic <span className="cc-mk">{ack.strategicMetricKey}</span></dt>
-                <dd className="tabular">{num.format(ack.strategicValue)}</dd>
-              </div>
-              <div>
-                <dt>Operational <span className="cc-mk">{ack.operationalMetricKey}</span></dt>
-                <dd className="tabular">{num.format(ack.operationalValue)}</dd>
-              </div>
-              <div>
-                <dt>Gap at acceptance</dt>
-                <dd className="tabular">{num.format(ack.gap)}</dd>
-              </div>
-            </dl>
+            <p className="cc-ack-nums">
+              Strategic {metricLabel(ack.strategicMetricKey)} was <span className="tabular">{num.format(ack.strategicValue)}</span>; operational {metricLabel(ack.operationalMetricKey)} <span className="tabular">{num.format(ack.operationalValue)}</span>.
+            </p>
+            <p className="cc-ack-gap">Gap at acceptance: <span className="tabular">{num.format(ack.gap)}</span>.</p>
             <p className="cc-ack-reason">Manager reason: {ack.reason}</p>
           </article>
         ))}
