@@ -3,7 +3,6 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 
 export type PlanStatus =
   | 'DRAFT'
-  | 'CANDIDATE_SCENARIO'
   | 'ADOPTED'
   | 'REFORECAST_DRAFT'
   | 'ADOPTED_REFORECAST';
