@@ -79,6 +79,13 @@ h3 { margin: 0; font-size: 1rem; font-weight: 500; }
 .remedy-level-one span { display: block; color: #6b746e; font-size: .72rem; margin-bottom: 4px; }
 .remedy-level-one strong { font-size: 1.2rem; font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .allocation-remedy, .no-remedy { margin: 12px 0; font-size: .85rem; color: #4f5b53; }
+.conversion-chain { margin: 12px 0 0; display: grid; gap: 0; }
+.conversion-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(6.5rem, auto); gap: 4px 12px; align-items: baseline; padding: 3px 0; }
+.conversion-qty { font-size: .95rem; font-weight: 500; overflow-wrap: anywhere; }
+.conversion-arrow { color: #8d978f; font-weight: 400; margin-right: 6px; }
+.conversion-note { color: #6b746e; font-size: .78rem; text-align: right; overflow-wrap: anywhere; }
+.conversion-need .conversion-note { color: #263029; font-weight: 500; }
+.conversion-shifts-close { margin: 10px 0 0; color: #6b746e; font-size: .82rem; }
 details { margin: 10px 0; font-size: .85rem; }
 summary { cursor: pointer; font-weight: 500; }
 .ack-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ebeae4; }
@@ -206,6 +213,7 @@ summary { cursor: pointer; font-weight: 500; }
   .field, .setup-field { grid-template-columns: 1fr; gap: 6px; }
   .field input, .field select { text-align: left; }
   .remedy-level-one, .ack-form { grid-template-columns: 1fr; display: grid; }
+  .conversion-step { grid-template-columns: minmax(0, 1fr) minmax(5.5rem, auto); }
   .plan-meta > div { grid-template-columns: 1fr; gap: 2px; }
   .plan-meta dd { text-align: left; }
   .adopt-actions { flex-direction: column; }

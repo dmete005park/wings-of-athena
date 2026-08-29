@@ -4,6 +4,7 @@ import {
   computeFeasibilityGapFingerprint,
   evaluatePlanAdoptionReadiness,
   type AdoptionReadiness,
+  type FeasibilityAcknowledgment,
   type FeasibilityGapRecord,
   type PlanVersionRecord,
   type ScenarioName,
@@ -16,6 +17,7 @@ import {
   type CampaignPathDraft,
   type ChannelDraft,
   type ChannelId,
+  type PersuasionConversionChain,
   type ProgramBudgetDraft,
   type ScenarioDraft,
 } from './planBuilder';
@@ -386,6 +388,7 @@ export default function App() {
             <ToggleField label="Enable" guide={FIELD_GUIDES.supportIdEnabled} checked={draft.programBudget.supportIdEnabled} onChange={(value) => updateProgram('supportIdEnabled', value)} />
             {draft.programBudget.supportIdEnabled && <>
               <OptionalPercentField label="ID coverage" guide={FIELD_GUIDES.supportIdCoverageTarget} value={draft.programBudget.supportIdCoverageTarget} onChange={(value) => updateProgram('supportIdCoverageTarget', value)} />
+              <OptionalPercentField label="ID conversion" guide={FIELD_GUIDES.idConversionRate} value={draft.programBudget.idConversionRate} onChange={(value) => updateProgram('idConversionRate', value)} />
               <OptionalPercentField label="Supporter turnout" guide={FIELD_GUIDES.supporterTurnoutRate} value={draft.programBudget.supporterTurnoutRate} onChange={(value) => updateProgram('supporterTurnoutRate', value)} />
             </>}
           </div>
@@ -397,19 +400,23 @@ export default function App() {
           ))}
         </div>
 
-        {built && built.feasibilityGaps.length > 0 && (
+        {built && (built.feasibilityGaps.length > 0 || persuasionShortfalls(built.persuasionChains, built.feasibilityGaps).length > 0) && (
           <div className="gap-list" aria-label="Feasibility constraints">
             {built.feasibilityGaps.map((gap) => (
               <GapCard
                 key={gap.gapId}
                 gap={gap}
                 built={built}
+                chain={chainForGap(gap, built.persuasionChains)}
                 gapFingerprint={gapFingerprints[gap.gapId]}
                 existingAck={draft.feasibilityAcknowledgments.find((item) => item.gapId === gap.gapId)}
                 reason={ackReasons[gap.gapId] ?? ''}
                 setReason={(value: string) => setAckReasons((current) => ({ ...current, [gap.gapId]: value }))}
                 acknowledge={() => { void acknowledgeGap(gap); }}
               />
+            ))}
+            {persuasionShortfalls(built.persuasionChains, built.feasibilityGaps).map((chain) => (
+              <PersuasionOutputCard key={`persuasion:${chain.channelId}`} chain={chain} />
             ))}
           </div>
         )}
@@ -473,6 +480,7 @@ function ChannelPanel({ channelId, channel, update }: { channelId: ChannelId; ch
         <OptionalNumberField label="Contact depth" guide={FIELD_GUIDES.contactDepthTarget} value={channel.contactDepthTarget} onChange={(value) => update('contactDepthTarget', value)} step={0.1} />
         <OptionalNumberField label="Attempts / shift" guide={FIELD_GUIDES.attemptsPerCompletedShift} value={channel.attemptsPerCompletedShift} onChange={(value) => update('attemptsPerCompletedShift', value)} />
         <OptionalNumberField label="Allocated shifts" guide={FIELD_GUIDES.allocatedCompletedShifts} value={channel.allocatedCompletedShifts} onChange={(value) => update('allocatedCompletedShifts', value)} />
+        <OptionalPercentField label="Contact rate" guide={FIELD_GUIDES.perAttemptContactRate} value={channel.perAttemptContactRate} onChange={(value) => update('perAttemptContactRate', value)} />
         <OptionalPercentField label="Flake rate" guide={FIELD_GUIDES.volunteerFlakeRate} value={channel.volunteerFlakeRate} onChange={(value) => update('volunteerFlakeRate', value)} />
         <OptionalNumberField label="Cost / shift" guide={FIELD_GUIDES.costPerCompletedShift} value={channel.costPerCompletedShift} onChange={(value) => update('costPerCompletedShift', value)} />
       </>}
@@ -480,21 +488,116 @@ function ChannelPanel({ channelId, channel, update }: { channelId: ChannelId; ch
   );
 }
 
-function GapCard({ gap, built, gapFingerprint, existingAck, reason, setReason, acknowledge }: any) {
+function chainForGap(gap: FeasibilityGapRecord, chains: PersuasionConversionChain[] | undefined): PersuasionConversionChain | undefined {
+  if (gap.constraintType !== 'CAPACITY' || !gap.gapId.startsWith('capacity:')) return undefined;
+  const channelId = gap.gapId.slice('capacity:'.length);
+  return chains?.find((item) => item.channelId === channelId && item.votes < item.votesNeeded);
+}
+
+function persuasionShortfalls(chains: PersuasionConversionChain[] | undefined, gaps: FeasibilityGapRecord[]): PersuasionConversionChain[] {
+  const covered = new Set(
+    gaps.filter((gap) => gap.constraintType === 'CAPACITY' && gap.gapId.startsWith('capacity:')).map((gap) => gap.gapId.slice('capacity:'.length)),
+  );
+  return (chains ?? []).filter((chain) => chain.votes < chain.votesNeeded && !covered.has(chain.channelId));
+}
+
+function formatRate(rate: number): string {
+  const pct = Math.round(rate * 1000) / 10;
+  return `${pct}%`.replace(/\.0%$/, '%');
+}
+
+function ConversionChain({ chain }: { chain: PersuasionConversionChain }) {
+  return (
+    <div className="conversion-chain">
+      <div className="conversion-step">
+        <span className="conversion-qty tabular">{formatNumber.format(chain.shifts)} shifts</span>
+        <span className="conversion-note" />
+      </div>
+      <div className="conversion-step">
+        <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.attempts)} attempts</span>
+        <span className="conversion-note">{formatNumber.format(chain.attemptsPerShift)} per shift</span>
+      </div>
+      <div className="conversion-step">
+        <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.contacts)} contacts</span>
+        <span className="conversion-note">{formatRate(chain.contactRate)} contact rate</span>
+      </div>
+      <div className="conversion-step">
+        <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.ids)} IDs</span>
+        <span className="conversion-note">{formatRate(chain.conversionRate)} conversion</span>
+      </div>
+      <div className="conversion-step">
+        <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.votes)} votes</span>
+        <span className="conversion-note">{formatRate(chain.supporterTurnoutRate)} supporter turnout</span>
+      </div>
+      <div className="conversion-step conversion-need">
+        <span className="conversion-qty" />
+        <span className="conversion-note">need {formatNumber.format(chain.votesNeeded)}</span>
+      </div>
+      {chain.shiftsToClose != null && (
+        <p className="conversion-shifts-close tabular">{formatNumber.format(chain.shiftsToClose)} shifts at these rates</p>
+      )}
+    </div>
+  );
+}
+
+function PersuasionHeadline({ chain }: { chain: PersuasionConversionChain }) {
+  return (
+    <div>
+      <p className="eyebrow">Short of the vote need</p>
+      <h3 className="tabular">{formatNumber.format(chain.votes)} of {formatNumber.format(chain.votesNeeded)} votes</h3>
+    </div>
+  );
+}
+
+function PersuasionOutputCard({ chain }: { chain: PersuasionConversionChain }) {
+  return (
+    <article className="gap-card gap-persuasion">
+      <div className="gap-heading">
+        <PersuasionHeadline chain={chain} />
+      </div>
+      <ConversionChain chain={chain} />
+    </article>
+  );
+}
+
+function GapCard({ gap, built, chain, gapFingerprint, existingAck, reason, setReason, acknowledge }: {
+  gap: FeasibilityGapRecord;
+  built: NonNullable<Awaited<ReturnType<typeof buildScenarioPlan>>>;
+  chain?: PersuasionConversionChain;
+  gapFingerprint?: string;
+  existingAck?: FeasibilityAcknowledgment;
+  reason: string;
+  setReason: (value: string) => void;
+  acknowledge: () => void;
+}) {
   const stale = Boolean(existingAck && gapFingerprint && existingAck.gapFingerprint !== gapFingerprint);
   const channelId = gap.gapId.includes(':') ? gap.gapId.split(':')[1] : '';
-  const channelResult = built.programFeasibility?.value?.channels.find((item: any) => item.channelId === channelId);
-  const conflict = built.programFeasibility?.value?.allocationConflicts.find((item: any) => gap.gapId === `allocation:${item.resourcePoolId}`);
+  const channelResult = built.programFeasibility?.value?.channels.find((item) => item.channelId === channelId);
+  const conflict = built.programFeasibility?.value?.allocationConflicts.find((item) => gap.gapId === `allocation:${item.resourcePoolId}`);
+  const persuasion = gap.constraintType === 'CAPACITY' && chain != null && chain.votes < chain.votesNeeded;
 
   return (
     <article className={`gap-card gap-${gap.constraintType.toLowerCase()}`}>
-      <div className="gap-heading"><div><p className="eyebrow">{gap.constraintType}</p><h3>{gap.gap.toLocaleString()}</h3></div>{existingAck && !stale && <span className="ack-badge">OK</span>}</div>
-      {stale && <div className="stale-delta"><strong>Changed</strong><p>{existingAck.gap.toLocaleString()} → {gap.gap.toLocaleString()}</p></div>}
-      {gap.constraintType === 'CAPACITY' && channelResult && <>
-        <div className="remedy-level-one"><div><span>Workers</span><strong>+{channelResult.additionalWorkersRequired}</strong></div><div><span>Cost</span><strong>{channelResult.incrementalCost == null ? 'NO DATA' : formatMoney.format(channelResult.incrementalCost)}</strong></div></div>
-        <details><summary>Shift math</summary><p>+{channelResult.additionalCompletedShiftsRequired} shifts{channelResult.additionalScheduledShiftsRequired != null ? ` · +${channelResult.additionalScheduledShiftsRequired} scheduled` : ''}</p>{channelResult.additionalScheduledShiftsPerActiveDay != null && <p>{channelResult.additionalScheduledShiftsPerActiveDay.toFixed(1)} / day</p>}</details>
-      </>}
-      {gap.constraintType === 'ALLOCATION' && conflict && <div className="allocation-remedy"><strong>{conflict.shiftsToReallocate} shifts to move</strong><p>{conflict.channelAllocations.map((item: any) => `${item.channelId}: ${item.allocatedCompletedShifts}`).join(' · ')}</p></div>}
+      <div className="gap-heading">
+        {persuasion ? (
+          <PersuasionHeadline chain={chain} />
+        ) : (
+          <div>
+            <p className="eyebrow">{plainConstraint(gap.constraintType)}</p>
+            <h3 className="tabular">{gap.gap.toLocaleString()}</h3>
+          </div>
+        )}
+        {existingAck && !stale && <span className="ack-badge">OK</span>}
+      </div>
+      {stale && existingAck && <div className="stale-delta"><strong>Changed</strong><p>{existingAck.gap.toLocaleString()} → {gap.gap.toLocaleString()}</p></div>}
+      {persuasion && <ConversionChain chain={chain} />}
+      {gap.constraintType === 'CAPACITY' && channelResult && !persuasion && (
+        <>
+          <div className="remedy-level-one"><div><span>Workers</span><strong>+{channelResult.additionalWorkersRequired}</strong></div><div><span>Cost</span><strong>{channelResult.incrementalCost == null ? 'NO DATA' : formatMoney.format(channelResult.incrementalCost)}</strong></div></div>
+          <details><summary>Shift math</summary><p>+{channelResult.additionalCompletedShiftsRequired} shifts{channelResult.additionalScheduledShiftsRequired != null ? ` · +${channelResult.additionalScheduledShiftsRequired} scheduled` : ''}</p>{channelResult.additionalScheduledShiftsPerActiveDay != null && <p>{channelResult.additionalScheduledShiftsPerActiveDay.toFixed(1)} / day</p>}</details>
+        </>
+      )}
+      {gap.constraintType === 'ALLOCATION' && conflict && <div className="allocation-remedy"><strong>{conflict.shiftsToReallocate} shifts to move</strong><p>{conflict.channelAllocations.map((item) => `${item.channelId}: ${item.allocatedCompletedShifts}`).join(' · ')}</p></div>}
       {gap.constraintType === 'COST' && (
         <div className="remedy-level-one">
           <div><span>Budget gap</span><strong>{formatMoney.format(gap.gap)}</strong></div>
@@ -511,6 +614,16 @@ function GapCard({ gap, built, gapFingerprint, existingAck, reason, setReason, a
       <div className="ack-form"><label><span>{stale ? 'New reason' : 'Reason'}</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why accept this gap?" /></label><button type="button" className="secondary-button" disabled={!reason.trim()} onClick={acknowledge}>{stale ? 'Re-acknowledge' : 'Acknowledge'}</button></div>
     </article>
   );
+}
+
+function plainConstraint(type: FeasibilityGapRecord['constraintType']): string {
+  switch (type) {
+    case 'CAPACITY': return 'Short of the reachable universe';
+    case 'COST': return 'Over budget';
+    case 'REACHABILITY': return 'Cannot reach the target';
+    case 'ALLOCATION': return 'Shifts over-allocated';
+    default: return 'Constraint';
+  }
 }
 
 function TextField({ label, value, onChange, type = 'text', guide }: { label: string; value: string; onChange: (value: string) => void; type?: string; guide?: FieldGuide }) {

@@ -4,6 +4,7 @@ import {
   calculateExpectedElectorate,
   calculateProgramBudgetFeasibility,
   calculateRaceThreshold,
+  calculateSupportIdObjective,
   constructStrategicUniverse,
 } from '@wings/math-engine';
 import {
@@ -44,6 +45,7 @@ export interface ChannelDraft {
   contactDepthTarget: number | null;
   attemptsPerCompletedShift: number | null;
   allocatedCompletedShifts: number | null;
+  perAttemptContactRate: number | null;
   volunteerFlakeRate: number | null;
   costPerCompletedShift: number | null;
 }
@@ -56,7 +58,24 @@ export interface ProgramBudgetDraft {
   supportIdEnabled: boolean;
   supportIdCoverageTarget: number | null;
   supporterTurnoutRate: number | null;
+  idConversionRate: number | null;
   channels: Record<ChannelId, ChannelDraft>;
+}
+
+/** Vote funnel from a channel's allocated program. Display only — not a new feasibility record. */
+export interface PersuasionConversionChain {
+  channelId: ChannelId;
+  shifts: number;
+  attempts: number;
+  attemptsPerShift: number;
+  contacts: number;
+  contactRate: number;
+  ids: number;
+  conversionRate: number;
+  votes: number;
+  supporterTurnoutRate: number;
+  votesNeeded: number;
+  shiftsToClose: number | null;
 }
 
 export interface ScenarioDraft {
@@ -98,6 +117,7 @@ function blankChannel(enabled: boolean): ChannelDraft {
     contactDepthTarget: null,
     attemptsPerCompletedShift: null,
     allocatedCompletedShifts: null,
+    perAttemptContactRate: null,
     volunteerFlakeRate: null,
     costPerCompletedShift: null,
   };
@@ -115,6 +135,7 @@ export function createStarterScenario(scenario: ScenarioName = 'BASE'): Scenario
       supportIdEnabled: false,
       supportIdCoverageTarget: null,
       supporterTurnoutRate: null,
+      idConversionRate: null,
       channels: {
         doors: blankChannel(true),
         phones: blankChannel(false),
@@ -130,6 +151,70 @@ function positive(value: number | null): boolean {
 
 function nonNegative(value: number | null): boolean {
   return value !== null && Number.isFinite(value) && value >= 0;
+}
+
+function probability(value: number | null): boolean {
+  return value !== null && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+export function buildPersuasionConversionChain(
+  channelId: ChannelId,
+  channel: ChannelDraft,
+  voteGoal: number | null,
+  coverageTarget: number | null,
+  supporterTurnoutRate: number | null,
+  idConversionRate: number | null,
+): PersuasionConversionChain | null {
+  const shifts = channel.allocatedCompletedShifts;
+  const attemptsPerShift = channel.attemptsPerCompletedShift;
+  const contactRate = channel.perAttemptContactRate;
+  if (
+    !positive(shifts)
+    || !positive(attemptsPerShift)
+    || !probability(contactRate)
+    || !probability(idConversionRate)
+    || !probability(supporterTurnoutRate)
+    || supporterTurnoutRate === 0
+    || voteGoal === null
+    || !Number.isFinite(voteGoal)
+    || voteGoal < 0
+    || !probability(coverageTarget)
+  ) {
+    return null;
+  }
+
+  const attempts = shifts! * attemptsPerShift!;
+  const objective = calculateSupportIdObjective({
+    campaignVoteGoal: voteGoal,
+    idCoverageTarget: coverageTarget!,
+    supporterTurnoutRate: supporterTurnoutRate!,
+    attempts,
+    perAttemptContactRate: contactRate!,
+    idCompletionRate: idConversionRate!,
+    supportRate: 1,
+  });
+  const votes = objective.value?.expectedSupportVotesFromIds;
+  const ids = objective.value?.expectedSupportIds;
+  const votesNeeded = objective.value?.supportIdVoteTarget;
+  if (votes == null || ids == null || votesNeeded == null) return null;
+
+  const yieldPerShift = attemptsPerShift! * contactRate! * idConversionRate! * supporterTurnoutRate!;
+  const shiftsToClose = yieldPerShift > 0 ? Math.ceil(votesNeeded / yieldPerShift) : null;
+
+  return {
+    channelId,
+    shifts: shifts!,
+    attempts,
+    attemptsPerShift: attemptsPerShift!,
+    contacts: attempts * contactRate!,
+    contactRate: contactRate!,
+    ids,
+    conversionRate: idConversionRate!,
+    votes,
+    supporterTurnoutRate: supporterTurnoutRate!,
+    votesNeeded,
+    shiftsToClose,
+  };
 }
 
 export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity) {
@@ -312,6 +397,7 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
       contactDepthTarget: channel.contactDepthTarget,
       attemptsPerCompletedShift: channel.attemptsPerCompletedShift,
       allocatedCompletedShifts: channel.allocatedCompletedShifts,
+      perAttemptContactRate: channel.perAttemptContactRate,
       volunteerFlakeRate: channel.volunteerFlakeRate,
       costPerCompletedShift: channel.costPerCompletedShift,
     };
@@ -342,6 +428,7 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
       supportIdEnabled: draft.programBudget.supportIdEnabled,
       supportIdCoverageTarget: draft.programBudget.supportIdCoverageTarget,
       supporterTurnoutRate: draft.programBudget.supporterTurnoutRate,
+      idConversionRate: draft.programBudget.idConversionRate,
       channels: channelInputs,
     },
   };
@@ -399,7 +486,22 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
     ...(programFeasibility?.issues ?? []),
   ];
 
-  return { build, electorate, threshold, voteGoal, universe, programFeasibility, feasibilityGaps, issues };
+  const persuasionChains: PersuasionConversionChain[] = [];
+  if (draft.programBudget.supportIdEnabled) {
+    for (const [channelId, channel] of enabledChannels) {
+      const chain = buildPersuasionConversionChain(
+        channelId,
+        channel,
+        voteGoal?.value ?? null,
+        draft.programBudget.supportIdCoverageTarget,
+        draft.programBudget.supporterTurnoutRate,
+        draft.programBudget.idConversionRate,
+      );
+      if (chain) persuasionChains.push(chain);
+    }
+  }
+
+  return { build, electorate, threshold, voteGoal, universe, programFeasibility, feasibilityGaps, persuasionChains, issues };
 }
 
 export async function createAcknowledgment(
