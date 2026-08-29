@@ -91,6 +91,21 @@ test('support IDs are an optional objective calculation', () => {
   assert.equal(result.value?.requiredSupportIds, 625);
 });
 
+test('support ID funnel converts attempts through contact, ID completion, and turnout into votes', () => {
+  const result = calculateSupportIdObjective({
+    campaignVoteGoal: 2000,
+    idCoverageTarget: 1,
+    supporterTurnoutRate: 0.8,
+    attempts: 5000,
+    perAttemptContactRate: 0.2,
+    idCompletionRate: 0.5,
+    supportRate: 1,
+  });
+  assert.equal(result.value?.supportIdVoteTarget, 2000);
+  assert.equal(result.value?.expectedSupportIds, 500);
+  assert.equal(result.value?.expectedSupportVotesFromIds, 400);
+});
+
 test('capacity rounds required completed shifts up', () => {
   const result = calculateCapacity({ attemptsGoal: 1001, attemptsPerCompletedShift: 40, workers: 10, completedShiftsPerWorker: 3, volunteerFlakeRate: 0.2 });
   assert.equal(result.value?.completedShiftsRequired, 26);
