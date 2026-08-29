@@ -23,6 +23,15 @@ const dec1 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 const TRACKABLE_KPIS: Array<{ metricKey: string; label: string; unit: string }> = [
   { metricKey: 'victory.vote_goal', label: 'Vote goal', unit: 'votes' },
   { metricKey: 'universe.strategic_desired', label: 'Voter universe', unit: 'voters' },
+  { metricKey: 'outreach.attempts_goal.doors', label: 'Door attempts', unit: 'attempts' },
+  { metricKey: 'outreach.attempts_goal.phones', label: 'Phone attempts', unit: 'attempts' },
+  { metricKey: 'outreach.successful_contacts_expected.doors', label: 'Door contacts', unit: 'contacts' },
+  { metricKey: 'outreach.successful_contacts_expected.phones', label: 'Phone contacts', unit: 'contacts' },
+  { metricKey: 'support_ids.required', label: 'Support IDs', unit: 'IDs' },
+  { metricKey: 'support_ids.expected_votes.doors', label: 'Door votes from IDs', unit: 'votes' },
+  { metricKey: 'support_ids.expected_votes.phones', label: 'Phone votes from IDs', unit: 'votes' },
+  { metricKey: 'capacity.completed_shifts_required.doors', label: 'Door shifts', unit: 'shifts' },
+  { metricKey: 'capacity.completed_shifts_required.phones', label: 'Phone shifts', unit: 'shifts' },
 ];
 
 const STATUS_META: Record<WinningPathStatus, { label: string; className: string; rank: number }> = {
