@@ -43,6 +43,7 @@ The current executable web flow reaches Adopt Plan. Adoption requires all requir
 ## Documentation
 
 - [Roadmap](./docs/ROADMAP.md) — what ships next
+- [Deployment](./docs/DEPLOY.md) — Netlify modes, redeploy, access decisions
 - [Blueprint (engineering mirror)](./docs/BLUEPRINT.md) — contracts enforced in code
 - [Multi-draft decision](./docs/decisions/MULTI_DRAFT_PER_CAMPAIGN.md) — one draft per scenario (v1)
 - [Data classification](./docs/DATA_CLASSIFICATION.md)
