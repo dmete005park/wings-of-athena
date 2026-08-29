@@ -1,0 +1,75 @@
+---
+description: "The seam between manager input, the math engine, and the stored plan. Read before editing planBuilder.ts, App.tsx, or anything that constructs calculation inputs or snapshots."
+globs: ["apps/web/src/planBuilder.ts", "apps/web/src/App.tsx", "apps/web/src/CommandCenter.tsx"]
+alwaysApply: false
+---
+
+# Wiring
+
+The math engine is pure and well tested. The plan domain is well tested. Neither has produced a defect in ten sprints.
+
+Every defect found so far lives here: the layer that carries a manager's input into an engine function, renders the result, and records what was consumed. This file exists because that layer had no rules and no tests.
+
+## Never hardcode a manager decision
+
+Any value a manager can set comes from her input. Race rule, target share, turnout rates, universe multiplier, worker counts, shifts, productivity, contact rates, flake rates, costs — all of it.
+
+If a screen needs a value the input layer does not supply yet, say so and stop. Do not substitute a literal to make the screen render.
+
+A placeholder that ships becomes the behavior. `planBuilder.ts` hardcoded `{ type: 'MAJORITY', requiredShare: 0.5, strictlyGreater: true }` for ten sprints. The consequences: the election-type field in Campaign Setup was decorative, a plurality race displayed a majority line of 25,001 that does not exist in its charter, and a correct plurality vote goal triggered `GOAL_BELOW_THRESHOLD` — the app demanding acknowledgment for a target that was right.
+
+Nothing caught it. It compiled, every test passed, and the screen rendered a plausible number.
+
+The same failure produced the 52% target share defect in Sprint 2. Both are a manager's decision made in code.
+
+## Snapshots record what the formula consumed
+
+Every calculation snapshot lists every input the formula actually used, with the values used, and the `formulaId` of the formula that ran.
+
+Engine Rule 10 requires every material calculation to be reproducible from stored inputs, formula version, and calibration version. A snapshot that omits inputs is not reproducible, and **adopted plans are immutable** — a bad snapshot cannot be corrected later. This is the only defect class in the project that is permanent.
+
+Known bad, fix before adopting further plans:
+
+- `electorate.expected.modeled` records `inputs: { eligibleVoters }`. The formula consumes three propensity counts and three turnout rates. 50,000 cannot be reproduced from 90,000.
+- `victory.threshold` records `requiredShare: 0.5` — a hardcoded literal, not the campaign's rule.
+
+When adding a snapshot, open the engine function and list its parameters. If the snapshot's `inputs` does not cover them, it is wrong.
+
+## A calculation is not done until it is connected
+
+An engine function passing its unit test is not a finished feature. Done means:
+
+1. A manager input reaches the function
+2. The result reaches a screen
+3. The inputs consumed are recorded in a calculation snapshot
+4. The metric is trackable post-adoption if it is operationally meaningful
+
+Short of that, the work is a brick sitting next to the wall.
+
+These engine functions are built, tested, and currently unreachable from the UI. That is most of the operational program. The attempts → contacts → IDs → votes chain a manager needs already exists; it is disconnected, not missing. Prefer connecting an existing function over writing a new one.
+
+## Command Center tracks what the snapshot stores
+
+`TRACKABLE_KPIS` can only reference metrics present in the adopted record. It currently tracks two — vote goal and voter universe — because those are among the only four snapshots `planBuilder` writes.
+
+The Command Center is not narrow because of a Command Center limitation. Widening it means storing the operational program in the snapshot first.
+
+## No raw internals on a manager's screen
+
+Error codes, metric keys, section keys, and enum values are Level 3. A manager should never read `PLAN_RECALC_REQUIRED`, `program_budget.channelCapacityInputs`, or `universe.strategic_desired`.
+
+State what happened in plain language and what she can do about it.
+
+## Adopted and live values must be distinguishable
+
+The plan panel shows live recomputed values. The Command Center shows adopted values. When inputs change after adoption these differ, and both are correct — but a manager seeing 18,000 in one place and 15,000 in another has no way to know which is locked.
+
+Whenever the current draft differs from the adopted plan, say so plainly, show which numbers are locked, and state what re-adoption would change.
+
+## Tests
+
+`apps/web` has no tests. That is why this layer holds every known defect while 51 engine and plan-domain tests pass.
+
+Any change to `planBuilder.ts` adds a test over `buildScenarioPlan` covering: the race rule actually passed through, snapshot inputs matching the formula's parameters, and the derived values produced from a known input set.
+
+One assertion that a PLURALITY race yields a plurality threshold would have caught the hardcoded rule the day it was written.
