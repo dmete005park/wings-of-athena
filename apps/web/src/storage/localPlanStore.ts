@@ -48,7 +48,7 @@ export class LocalPlanStore implements PlanStore {
     const plans = readAll();
     const index = plans.findIndex((plan) => plan.planVersionId === planVersionId);
     if (index < 0) throw new Error('PLAN_VERSION_NOT_FOUND');
-    const adopted = adoptPlanRecord(plans[index], metadata);
+    const adopted = await adoptPlanRecord(plans[index], metadata);
     plans[index] = adopted;
     writeAll(plans);
     return adopted;
@@ -58,7 +58,7 @@ export class LocalPlanStore implements PlanStore {
     const plans = readAll();
     const parent = plans.find((plan) => plan.planVersionId === parentPlanVersionId);
     if (!parent) throw new Error('PARENT_PLAN_VERSION_NOT_FOUND');
-    const child = createReforecastDraftRecord(parent, draft);
+    const child = await createReforecastDraftRecord(parent, draft);
     plans.push(child);
     writeAll(plans);
     return child;

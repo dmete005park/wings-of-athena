@@ -55,17 +55,17 @@ function isDefinition(value: PlanSectionDefinition | PlanSectionStatus): value i
   return Array.isArray((value as PlanSectionDefinition).fields);
 }
 
-export function buildPlanVersionRecord(
+export async function buildPlanVersionRecord(
   draft: PlanRecordDraft,
   sections: Array<PlanSectionDefinition | PlanSectionStatus>,
   enabledObjectiveIds: string[] = [],
-): PlanBuildResult {
+): Promise<PlanBuildResult> {
   const normalizedObjectives = [...new Set(enabledObjectiveIds)].sort();
   const inputs: Record<string, JsonValue> = {
     ...draft.inputs,
     enabledObjectiveIds: normalizedObjectives,
   };
-  const inputHash = computeInputHash(inputs);
+  const inputHash = await computeInputHash(inputs);
   const calculations: CalculationSnapshot[] = draft.calculations.map((snapshot) => ({ ...snapshot, inputHash }));
 
   const statuses = sections.every(isDefinition)

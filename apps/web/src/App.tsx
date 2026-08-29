@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MATH_ENGINE_VERSION } from '@wings/math-engine';
 import {
   computeFeasibilityGapFingerprint,
   evaluatePlanAdoptionReadiness,
+  type AdoptionReadiness,
   type FeasibilityGapRecord,
   type PlanVersionRecord,
   type ScenarioName,
@@ -94,6 +95,61 @@ export default function App() {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const planStore = useMemo(() => new LocalPlanStore(), []);
   const campaignId = useMemo(getCampaignId, []);
+  const hasBuiltOnce = useRef(false);
+  const [built, setBuilt] = useState<Awaited<ReturnType<typeof buildScenarioPlan>> | null>(null);
+  const [displayReadiness, setDisplayReadiness] = useState<AdoptionReadiness>({ ready: false, blockers: [] });
+  const [gapFingerprints, setGapFingerprints] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const delay = hasBuiltOnce.current ? 150 : 0;
+    const timer = window.setTimeout(() => {
+      void buildScenarioPlan(draft, {
+        campaignId,
+        planVersionId: identity.planVersionId,
+        createdAt: identity.createdAt,
+        createdBy: 'local-manager',
+      }).then((result) => {
+        if (cancelled) return;
+        hasBuiltOnce.current = true;
+        setBuilt(result);
+      });
+    }, delay);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [campaignId, draft, identity]);
+
+  useEffect(() => {
+    if (!storedPlan || !built) {
+      setDisplayReadiness({ ready: false, blockers: [] });
+      return;
+    }
+    let cancelled = false;
+    void evaluatePlanAdoptionReadiness(storedPlan, built.build.record.inputHash).then((readiness) => {
+      if (!cancelled) setDisplayReadiness(readiness);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [storedPlan, built]);
+
+  useEffect(() => {
+    if (!built) {
+      setGapFingerprints({});
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(
+      built.feasibilityGaps.map(async (gap) => [gap.gapId, await computeFeasibilityGapFingerprint(gap)] as const),
+    ).then((entries) => {
+      if (!cancelled) setGapFingerprints(Object.fromEntries(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [built]);
 
   useEffect(() => {
     const all = loadScenarioDrafts();
@@ -115,22 +171,12 @@ export default function App() {
     });
   }, [identity.planVersionId, planStore]);
 
-  const built = useMemo(() => buildScenarioPlan(draft, {
-    campaignId,
-    planVersionId: identity.planVersionId,
-    createdAt: identity.createdAt,
-    createdBy: 'local-manager',
-  }), [campaignId, draft, identity]);
-
-  const currentPlan = built.build.record;
-  const planChangedSinceSave = Boolean(storedPlan && storedPlan.inputHash !== currentPlan.inputHash);
+  const currentPlan = built?.build.record ?? null;
+  const planChangedSinceSave = Boolean(storedPlan && currentPlan && storedPlan.inputHash !== currentPlan.inputHash);
   const planIsAdopted = storedPlan?.status === 'ADOPTED' || storedPlan?.status === 'ADOPTED_REFORECAST';
-  const readiness = storedPlan
-    ? evaluatePlanAdoptionReadiness(storedPlan, currentPlan.inputHash)
-    : { ready: false, blockers: [] };
 
   const sectionComplete = (sectionKey: string) =>
-    built.build.sectionStatuses.find((s) => s.sectionKey === sectionKey)?.status === 'COMPLETE';
+    built?.build.sectionStatuses.find((s) => s.sectionKey === sectionKey)?.status === 'COMPLETE';
 
   const switchScenario = (next: ScenarioName) => {
     setScenario(next);
@@ -167,6 +213,7 @@ export default function App() {
   };
 
   const savePlanDraft = async () => {
+    if (!currentPlan || !built) return;
     try {
       await planStore.saveDraft(currentPlan);
       setStoredPlan(currentPlan);
@@ -187,11 +234,11 @@ export default function App() {
   };
 
   const adoptPlan = async () => {
-    if (!storedPlan) {
+    if (!storedPlan || !currentPlan) {
       setPlanAction({ kind: 'ERROR', message: 'Save before adopting.' });
       return;
     }
-    const review = evaluatePlanAdoptionReadiness(storedPlan, currentPlan.inputHash);
+    const review = await evaluatePlanAdoptionReadiness(storedPlan, currentPlan.inputHash);
     if (!review.ready) {
       setPlanAction({ kind: 'ERROR', message: `${review.blockers.length} blocker(s)` });
       const firstSection = review.blockers.find((blocker) => blocker.context.sectionKey)?.context.sectionKey;
@@ -211,10 +258,10 @@ export default function App() {
     }
   };
 
-  const acknowledgeGap = (gap: FeasibilityGapRecord) => {
+  const acknowledgeGap = async (gap: FeasibilityGapRecord) => {
     const reason = (ackReasons[gap.gapId] ?? '').trim();
     if (!reason) return;
-    const acknowledgment = createAcknowledgment(gap, reason, 'local-manager');
+    const acknowledgment = await createAcknowledgment(gap, reason, 'local-manager');
     setDraft((current) => ({
       ...current,
       feasibilityAcknowledgments: [
@@ -248,7 +295,7 @@ export default function App() {
         <a href="#campaign-setup" className={sectionComplete('campaign_setup') ? 'nav-complete' : ''}>Campaign</a>
         <a href="#path-to-victory" className={sectionComplete('path_to_victory') ? 'nav-complete' : ''}>Path to Victory</a>
         <a href="#program-budget" className={sectionComplete('program_budget') ? 'nav-complete' : ''}>Program & Budget</a>
-        <a href="#adopt-plan" className={storedPlan && readiness.ready ? 'nav-complete' : ''}>Adopt</a>
+        <a href="#adopt-plan" className={storedPlan && displayReadiness.ready ? 'nav-complete' : ''}>Adopt</a>
       </nav>
 
       <section className="scenario-bar" aria-label="Scenario selection">
@@ -282,10 +329,10 @@ export default function App() {
           <div><p className="eyebrow">Step 2</p><h2>Path to Victory</h2></div>
         </div>
         <div className="hero-grid" aria-label="Path to victory summary">
-          <Metric label="Expected voters" value={built.electorate.value} />
-          <Metric label="Majority line" value={built.threshold?.value ?? null} />
-          <Metric label="Vote goal" value={built.voteGoal?.value ?? null} />
-          <Metric label="Universe" value={built.universe?.value ?? null} />
+          <Metric label="Expected voters" value={built?.electorate.value ?? null} />
+          <Metric label="Majority line" value={built?.threshold?.value ?? null} />
+          <Metric label="Vote goal" value={built?.voteGoal?.value ?? null} />
+          <Metric label="Universe" value={built?.universe?.value ?? null} />
         </div>
         <div className="workspace">
           <div className="panel">
@@ -310,7 +357,7 @@ export default function App() {
 
         <div className="program-anchor" aria-label="Universe anchor">
           <span className="anchor-label">Universe</span>
-          <strong className="anchor-value">{built.universe?.value == null ? 'NO DATA' : formatNumber.format(built.universe.value)}</strong>
+          <strong className="anchor-value">{built?.universe?.value == null ? 'NO DATA' : formatNumber.format(built.universe.value)}</strong>
         </div>
 
         <div className="program-grid">
@@ -338,24 +385,25 @@ export default function App() {
           ))}
         </div>
 
-        {built.feasibilityGaps.length > 0 && (
+        {built && built.feasibilityGaps.length > 0 && (
           <div className="gap-list" aria-label="Feasibility constraints">
             {built.feasibilityGaps.map((gap) => (
               <GapCard
                 key={gap.gapId}
                 gap={gap}
                 built={built}
+                gapFingerprint={gapFingerprints[gap.gapId]}
                 existingAck={draft.feasibilityAcknowledgments.find((item) => item.gapId === gap.gapId)}
                 reason={ackReasons[gap.gapId] ?? ''}
                 setReason={(value: string) => setAckReasons((current) => ({ ...current, [gap.gapId]: value }))}
-                acknowledge={() => acknowledgeGap(gap)}
+                acknowledge={() => { void acknowledgeGap(gap); }}
               />
             ))}
           </div>
         )}
       </section>
 
-      {built.issues.length > 0 && (
+      {built && built.issues.length > 0 && (
         <section className="issues" aria-live="polite">
           <strong>Review</strong>
           {built.issues.map((issue) => <p key={`${issue.code}-${issue.message}`}>{issue.level}: {issue.message}</p>)}
@@ -371,8 +419,8 @@ export default function App() {
           <div>
             <div className={`plan-message plan-message-${planAction.kind.toLowerCase()}`} role="status">{planAction.message}</div>
             {planChangedSinceSave && !planIsAdopted && <p className="changed-warning">Inputs changed — save again.</p>}
-            {!built.build.readyForAdoption && <div className="blocker-list"><strong>Incomplete</strong>{built.build.missingRequiredKeys.map((key) => <p key={key}>{key}</p>)}</div>}
-            {storedPlan && !readiness.ready && <div className="blocker-list"><strong>Blockers</strong>{readiness.blockers.map((blocker, index) => <p key={`${blocker.code}-${index}`}>{blocker.code}{blocker.context.gapId ? ` · ${blocker.context.gapId}` : ''}</p>)}</div>}
+            {!built?.build.readyForAdoption && built && <div className="blocker-list"><strong>Incomplete</strong>{built.build.missingRequiredKeys.map((key) => <p key={key}>{key}</p>)}</div>}
+            {storedPlan && !displayReadiness.ready && <div className="blocker-list"><strong>Blockers</strong>{displayReadiness.blockers.map((blocker, index) => <p key={`${blocker.code}-${index}`}>{blocker.code}{blocker.context.gapId ? ` · ${blocker.context.gapId}` : ''}</p>)}</div>}
           </div>
           <dl className="plan-meta">
             <div><dt>Scenario</dt><dd>{scenario}</dd></div>
@@ -384,13 +432,13 @@ export default function App() {
           <dl className="plan-meta plan-meta-audit">
             <div><dt>Plan version</dt><dd>{identity.planVersionId}</dd></div>
             <div><dt>Engine</dt><dd>{MATH_ENGINE_VERSION}</dd></div>
-            <div><dt>Input hash</dt><dd>{currentPlan.inputHash}</dd></div>
+            <div><dt>Input hash</dt><dd>{currentPlan?.inputHash ?? '—'}</dd></div>
             <div><dt>Stored hash</dt><dd>{storedPlan?.inputHash ?? '—'}</dd></div>
           </dl>
         </details>
         <div className="adopt-actions">
           <button className="secondary-button" type="button" onClick={savePlanDraft} disabled={planIsAdopted}>Save</button>
-          <button className="primary-button" type="button" onClick={adoptPlan} disabled={!storedPlan || planIsAdopted || planChangedSinceSave || !readiness.ready}>Adopt</button>
+          <button className="primary-button" type="button" onClick={adoptPlan} disabled={!storedPlan || !built || planIsAdopted || planChangedSinceSave}>Adopt</button>
         </div>
       </section>
     </main>
@@ -419,8 +467,8 @@ function ChannelPanel({ channelId, channel, update }: { channelId: ChannelId; ch
   );
 }
 
-function GapCard({ gap, built, existingAck, reason, setReason, acknowledge }: any) {
-  const stale = existingAck && existingAck.gapFingerprint !== computeFeasibilityGapFingerprint(gap);
+function GapCard({ gap, built, gapFingerprint, existingAck, reason, setReason, acknowledge }: any) {
+  const stale = Boolean(existingAck && gapFingerprint && existingAck.gapFingerprint !== gapFingerprint);
   const channelId = gap.gapId.includes(':') ? gap.gapId.split(':')[1] : '';
   const channelResult = built.programFeasibility?.value?.channels.find((item: any) => item.channelId === channelId);
   const conflict = built.programFeasibility?.value?.allocationConflicts.find((item: any) => gap.gapId === `allocation:${item.resourcePoolId}`);

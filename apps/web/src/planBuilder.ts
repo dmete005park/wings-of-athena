@@ -132,7 +132,7 @@ function nonNegative(value: number | null): boolean {
   return value !== null && Number.isFinite(value) && value >= 0;
 }
 
-export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity) {
+export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity) {
   const campaign = draft.campaign;
   const electorate = calculateExpectedElectorate({
     eligibleVoters: campaign.eligibleVoters,
@@ -364,7 +364,7 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
     formulaId: 'universe.vote_goal_multiplier.v0.2', inputs: { voteGoal: voteGoal?.value ?? null, multiplier: campaign.universeMultiplier }, evidenceRefs: [],
   });
 
-  const build = buildPlanVersionRecord({
+  const build = await buildPlanVersionRecord({
     planVersionId: identity.planVersionId,
     campaignId: identity.campaignId,
     parentPlanVersionId: null,
@@ -402,15 +402,15 @@ export function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity)
   return { build, electorate, threshold, voteGoal, universe, programFeasibility, feasibilityGaps, issues };
 }
 
-export function createAcknowledgment(
+export async function createAcknowledgment(
   gap: FeasibilityGapRecord,
   reason: string,
   actorId: string,
-): FeasibilityAcknowledgment {
+): Promise<FeasibilityAcknowledgment> {
   return {
     acknowledgmentId: `ack-${gap.gapId}-${Date.now()}`,
     gapId: gap.gapId,
-    gapFingerprint: computeFeasibilityGapFingerprint(gap),
+    gapFingerprint: await computeFeasibilityGapFingerprint(gap),
     constraintType: gap.constraintType,
     strategicMetricKey: gap.strategicMetricKey,
     strategicValue: gap.strategicValue,

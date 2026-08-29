@@ -22,12 +22,12 @@ export function assertStoredPlanReplaceable(existing: PlanVersionRecord | undefi
   if (existing && isAdoptedStatus(existing.status)) throw new Error('ADOPTED_PLAN_IMMUTABLE');
 }
 
-export function withCanonicalInputHash(plan: PlanVersionRecord): PlanVersionRecord {
-  return { ...plan, inputHash: computeInputHash(plan.inputs) };
+export async function withCanonicalInputHash(plan: PlanVersionRecord): Promise<PlanVersionRecord> {
+  return { ...plan, inputHash: await computeInputHash(plan.inputs) };
 }
 
-function acknowledgmentMatchesGap(ack: FeasibilityAcknowledgment, gap: FeasibilityGapRecord): boolean {
-  return ack.gapFingerprint === computeFeasibilityGapFingerprint(gap)
+async function acknowledgmentMatchesGap(ack: FeasibilityAcknowledgment, gap: FeasibilityGapRecord): Promise<boolean> {
+  return ack.gapFingerprint === await computeFeasibilityGapFingerprint(gap)
     && ack.constraintType === gap.constraintType
     && ack.strategicMetricKey === gap.strategicMetricKey
     && ack.strategicValue === gap.strategicValue
@@ -49,10 +49,10 @@ function gapSnapshotFromAcknowledgment(ack: FeasibilityAcknowledgment): Feasibil
   };
 }
 
-export function evaluatePlanAdoptionReadiness(
+export async function evaluatePlanAdoptionReadiness(
   plan: PlanVersionRecord,
   expectedInputHash?: string,
-): AdoptionReadiness {
+): Promise<AdoptionReadiness> {
   const blockers: AdoptionBlocker[] = [];
 
   if (!plan.sectionStatuses) {
@@ -71,7 +71,7 @@ export function evaluatePlanAdoptionReadiness(
     }
   }
 
-  const currentInputHash = computeInputHash(plan.inputs);
+  const currentInputHash = await computeInputHash(plan.inputs);
   const recalculationReasons: RecalculationReason[] = [];
   if (!plan.inputHash || plan.inputHash !== currentInputHash) recalculationReasons.push('INPUT_HASH_MISMATCH');
   if (expectedInputHash !== undefined && expectedInputHash !== plan.inputHash) recalculationReasons.push('REVIEWED_HASH_MISMATCH');
@@ -98,7 +98,7 @@ export function evaluatePlanAdoptionReadiness(
       });
       continue;
     }
-    if (!acknowledgmentMatchesGap(acknowledgment, gap)) {
+    if (!(await acknowledgmentMatchesGap(acknowledgment, gap))) {
       blockers.push({
         code: 'FEASIBILITY_ACK_STALE',
         context: {
@@ -114,16 +114,16 @@ export function evaluatePlanAdoptionReadiness(
   return { ready: blockers.length === 0, blockers };
 }
 
-export function assertPlanReadyForAdoption(plan: PlanVersionRecord, expectedInputHash?: string): void {
-  const readiness = evaluatePlanAdoptionReadiness(plan, expectedInputHash);
+export async function assertPlanReadyForAdoption(plan: PlanVersionRecord, expectedInputHash?: string): Promise<void> {
+  const readiness = await evaluatePlanAdoptionReadiness(plan, expectedInputHash);
   if (readiness.ready) return;
   const first = readiness.blockers[0];
   throw new PlanAdoptionError(first.code, first.context);
 }
 
-export function adoptPlanRecord(plan: PlanVersionRecord, metadata: AdoptionMetadata): PlanVersionRecord {
+export async function adoptPlanRecord(plan: PlanVersionRecord, metadata: AdoptionMetadata): Promise<PlanVersionRecord> {
   if (isAdoptedStatus(plan.status)) return plan;
-  assertPlanReadyForAdoption(plan, metadata.expectedInputHash);
+  await assertPlanReadyForAdoption(plan, metadata.expectedInputHash);
   const nextStatus = plan.status === 'REFORECAST_DRAFT' ? 'ADOPTED_REFORECAST' : 'ADOPTED';
   return {
     ...plan,
@@ -133,10 +133,10 @@ export function adoptPlanRecord(plan: PlanVersionRecord, metadata: AdoptionMetad
   };
 }
 
-export function createReforecastDraftRecord(
+export async function createReforecastDraftRecord(
   parent: PlanVersionRecord,
   draft: PlanVersionRecord,
-): PlanVersionRecord {
+): Promise<PlanVersionRecord> {
   if (!isAdoptedStatus(parent.status)) throw new Error('REFORECAST_PARENT_MUST_BE_ADOPTED');
   if (draft.planVersionId === parent.planVersionId) throw new Error('REFORECAST_REQUIRES_NEW_PLAN_VERSION_ID');
   return withCanonicalInputHash({
