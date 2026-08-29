@@ -10,7 +10,7 @@ The repository currently includes:
 
 - `@wings/math-engine`, a pure TypeScript deterministic math package
 - `@wings/plan-domain`, which owns plan versions, fingerprints, section completeness, feasibility acknowledgments, adoption, and reforecast lineage
-- a React/Vite web app with Campaign Setup, Path to Victory, Program & Budget, and Adopt Plan
+- a React/Vite web app with Campaign Setup, Path to Victory, Program & Budget, Adopt Plan, and Command Center
 - shared campaign resource pools with explicit channel allocations
 - separate reachability, capacity, cost, and allocation constraints
 - fingerprint-bound feasibility acknowledgments with stale-acknowledgment detection
@@ -18,16 +18,16 @@ The repository currently includes:
 - multiple scenario plan versions per campaign
 - local-browser plan storage for the current pre-database MVP
 - a public/private calibration boundary with no empirical calibration values committed to this repository
-- field guides and section pipeline explainers for manager inputs
+- field guides for manager inputs
 - Netlify deploy with context-specific data modes and security headers
 
-Command Center and Reforecast UI are not implemented yet.
+Reforecast UI is not implemented yet.
 
 ## Product flow
 
 `Campaign Setup → Path to Victory → Program & Budget → Adopt Plan → Command Center → Reforecast`
 
-The current executable web flow reaches Adopt Plan. Adoption requires all required sections to be complete, calculation snapshots to match the current canonical input fingerprint, the manager-reviewed fingerprint to match the saved plan, and every material feasibility gap to have a current acknowledgment when acknowledgment is required.
+The current executable web flow reaches Command Center. Adoption requires all required sections to be complete, calculation snapshots to match the current canonical input fingerprint, the manager-reviewed fingerprint to match the saved plan, and every material feasibility gap to have a current acknowledgment when acknowledgment is required.
 
 ## Planning principles
 
