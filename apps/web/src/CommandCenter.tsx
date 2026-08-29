@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   classifyKpiPace,
   deriveWinningPathStatus,
+  metricDefinition,
   type DecisionAlert,
   type KpiPaceResult,
   type WinningPathStatus,
 } from '@wings/math-engine';
-import type { JsonValue, PlanVersionRecord, ScenarioName } from '@wings/plan-domain';
+import type { FeasibilityAcknowledgment, JsonValue, PlanVersionRecord, ScenarioName } from '@wings/plan-domain';
 import {
   emptyActuals,
   getActuals,
@@ -220,7 +221,78 @@ export default function CommandCenter({
           </div>
         </details>
       )}
+
+      <AcceptedConstraints acknowledgments={plan.feasibilityAcknowledgments} />
     </section>
+  );
+}
+
+function constraintWord(type: FeasibilityAcknowledgment['constraintType']): string {
+  switch (type) {
+    case 'CAPACITY': return 'Capacity';
+    case 'COST': return 'Cost';
+    case 'REACHABILITY': return 'Reachability';
+    case 'ALLOCATION': return 'Allocation';
+    default: return 'Constraint';
+  }
+}
+
+function formatAckDate(iso: string): string {
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime())
+    ? iso
+    : parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+// Level-2 labels come from METRIC_REGISTRY. Channel-suffixed keys
+// (universe.capacity_supported.doors) resolve by stripping trailing segments.
+// Unregistered universe.* keys (reachable by channel) inherit the strategic
+// universe label. Any other miss keeps the raw key rather than inventing a name.
+function lookupMetric(key: string) {
+  let candidate = key;
+  for (;;) {
+    const found = metricDefinition(candidate);
+    if (found) return found;
+    const dot = candidate.lastIndexOf('.');
+    if (dot <= 0) return undefined;
+    candidate = candidate.slice(0, dot);
+  }
+}
+
+function metricLabel(key: string): string {
+  const def = lookupMetric(key)
+    ?? (key.startsWith('universe.') ? metricDefinition('universe.strategic_desired') : undefined);
+  if (!def) return key;
+  const hyphenated = def.displayName.match(/[A-Za-z]+(?:-[A-Za-z]+)+/);
+  if (hyphenated) return hyphenated[0].replace(/-/g, ' ').toLowerCase();
+  const words = def.displayName.trim().split(/\s+/);
+  return (words[words.length - 1] ?? def.displayName).toLowerCase();
+}
+
+// Level-2 context: the acknowledgments the manager accepted at adoption, read
+// from the adopted record so the decision survives into the running campaign —
+// constraint by cause, the numbers at the time of acceptance, and the reason.
+// Placed below the pacing cards and collapsed so it never competes with status.
+function AcceptedConstraints({ acknowledgments }: { acknowledgments: FeasibilityAcknowledgment[] }) {
+  if (!acknowledgments || acknowledgments.length === 0) return null;
+  return (
+    <details className="cc-acks">
+      <summary>Accepted constraints ({acknowledgments.length})</summary>
+      <div className="cc-acks-list">
+        {acknowledgments.map((ack) => (
+          <article key={ack.acknowledgmentId} className="cc-ack">
+            <p className="cc-ack-lead">
+              <strong>{constraintWord(ack.constraintType)} constraint</strong> accepted {formatAckDate(ack.acknowledgedAt)}.
+            </p>
+            <p className="cc-ack-nums">
+              Strategic {metricLabel(ack.strategicMetricKey)} was <span className="tabular">{num.format(ack.strategicValue)}</span>; operational {metricLabel(ack.operationalMetricKey)} <span className="tabular">{num.format(ack.operationalValue)}</span>.
+            </p>
+            <p className="cc-ack-gap">Gap at acceptance: <span className="tabular">{num.format(ack.gap)}</span>.</p>
+            <p className="cc-ack-reason">Manager reason: {ack.reason}</p>
+          </article>
+        ))}
+      </div>
+    </details>
   );
 }
 
