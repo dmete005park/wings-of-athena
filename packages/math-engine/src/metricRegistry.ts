@@ -1,3 +1,8 @@
+import {
+  REQUIRED_PROGRAM_FORMULA,
+  REQUIRED_PROGRAM_METRIC,
+} from './requiredProgram';
+
 export interface MetricDefinition {
   key: string;
   displayName: string;
@@ -22,7 +27,14 @@ export const METRIC_REGISTRY: readonly MetricDefinition[] = [
   { key: 'support_ids.required', displayName: 'Required Support IDs', unit: 'supporters', formulaId: 'objective.support_id.required.v0.2', rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'OBJECTIVE_DEPENDENT' },
   { key: 'capacity.completed_shifts_required', displayName: 'Completed Shifts Required', unit: 'shifts', formulaId: 'capacity.shifts.v0.2', rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
   { key: 'capacity.additional_completed_shifts_required', displayName: 'Additional Completed Shifts Required', unit: 'shifts', formulaId: 'capacity.remediation_shifts.v0.2', rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
-  { key: 'pace.required_daily', displayName: 'Required Daily Pace', unit: 'units/day', formulaId: 'pace.required_daily.v0.2', rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' }
+  { key: 'pace.required_daily', displayName: 'Required Daily Pace', unit: 'units/day', formulaId: 'pace.required_daily.v0.2', rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' },
+  { key: REQUIRED_PROGRAM_METRIC.IDS, displayName: 'Required IDs for Vote Goal', unit: 'supporters', formulaId: REQUIRED_PROGRAM_FORMULA.IDS, rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
+  { key: REQUIRED_PROGRAM_METRIC.CONTACTS, displayName: 'Required Contacts for Vote Goal', unit: 'contacts', formulaId: REQUIRED_PROGRAM_FORMULA.CONTACTS, rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
+  { key: REQUIRED_PROGRAM_METRIC.ATTEMPTS, displayName: 'Required Attempts for Vote Goal', unit: 'attempts', formulaId: REQUIRED_PROGRAM_FORMULA.ATTEMPTS, rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
+  { key: REQUIRED_PROGRAM_METRIC.SHIFTS, displayName: 'Required Shifts for Vote Goal', unit: 'shifts', formulaId: REQUIRED_PROGRAM_FORMULA.SHIFTS, rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
+  { key: REQUIRED_PROGRAM_METRIC.BREAK_EVEN_CONTACT_RATE, displayName: 'Break-even Contact Rate', unit: 'probability', formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_CONTACT_RATE, rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' },
+  { key: REQUIRED_PROGRAM_METRIC.BREAK_EVEN_ATTEMPTS_PER_SHIFT, displayName: 'Break-even Attempts per Shift', unit: 'attempts/shift', formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_ATTEMPTS_PER_SHIFT, rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' },
+  { key: REQUIRED_PROGRAM_METRIC.BREAK_EVEN_ID_CONVERSION, displayName: 'Break-even ID Conversion Rate', unit: 'probability', formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_ID_CONVERSION, rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' }
 ] as const;
 
 export function metricDefinition(key: string): MetricDefinition | undefined {
