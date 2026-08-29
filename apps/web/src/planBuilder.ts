@@ -1,12 +1,16 @@
 import {
   MATH_ENGINE_VERSION,
+  attemptsRequiredForContactGoal,
   calculateCampaignVoteGoal,
+  calculateCapacity,
   calculateExpectedElectorate,
+  calculateOutreachPlan,
   calculateProgramBudgetFeasibility,
   calculateRaceThreshold,
   calculateSupportIdObjective,
   constructStrategicUniverse,
   type RaceRule,
+  type ValidationIssue,
 } from '@wings/math-engine';
 import {
   buildPlanVersionRecord,
@@ -64,21 +68,31 @@ export interface ProgramBudgetDraft {
   channels: Record<ChannelId, ChannelDraft>;
 }
 
-/** Vote funnel from a channel's allocated program. Display only — not a new feasibility record. */
-export interface PersuasionConversionChain {
+/**
+ * Attempts → contacts → IDs → votes from engine functions, not inline arithmetic.
+ * Shifts are capacity required for the outreach attempts goal.
+ */
+export interface OutreachDerivation {
   channelId: ChannelId;
-  shifts: number;
+  uniqueReachTarget: number;
+  contactDepthTarget: number;
+  shifts: number | null;
+  attemptsPerShift: number | null;
   attempts: number;
-  attemptsPerShift: number;
   contacts: number;
   contactRate: number;
-  ids: number;
-  conversionRate: number;
-  votes: number;
-  supporterTurnoutRate: number;
-  votesNeeded: number;
-  shiftsToClose: number | null;
+  attemptsForContactGoal: number | null;
+  ids: number | null;
+  conversionRate: number | null;
+  votes: number | null;
+  supporterTurnoutRate: number | null;
+  votesNeeded: number | null;
 }
+
+type SnapshotDraft = Omit<PlanVersionRecord['calculations'][number], 'inputHash'>;
+
+/** Support-ID funnel: IDs counted are support IDs. Not a separate manager conversion. */
+const SUPPORT_ID_RATE = 1;
 
 export interface ScenarioDraft {
   scenario: ScenarioName;
@@ -259,63 +273,168 @@ function probability(value: number | null): boolean {
   return value !== null && Number.isFinite(value) && value >= 0 && value <= 1;
 }
 
-export function buildPersuasionConversionChain(
+export function buildOutreachDerivation(
   channelId: ChannelId,
   channel: ChannelDraft,
   voteGoal: number | null,
   coverageTarget: number | null,
   supporterTurnoutRate: number | null,
   idConversionRate: number | null,
-): PersuasionConversionChain | null {
-  const shifts = channel.allocatedCompletedShifts;
-  const attemptsPerShift = channel.attemptsPerCompletedShift;
+  poolWorkers: number | null,
+  shiftsPerWorker: number | null,
+): { derivation: OutreachDerivation | null; snapshots: SnapshotDraft[]; issues: ValidationIssue[] } {
+  const uniqueReachTarget = channel.uniqueReachTarget;
+  const contactDepthTarget = channel.contactDepthTarget;
   const contactRate = channel.perAttemptContactRate;
   if (
-    !positive(shifts)
-    || !positive(attemptsPerShift)
+    uniqueReachTarget === null
+    || !Number.isFinite(uniqueReachTarget)
+    || uniqueReachTarget < 0
+    || contactDepthTarget === null
+    || !Number.isFinite(contactDepthTarget)
+    || contactDepthTarget < 0
     || !probability(contactRate)
-    || !probability(idConversionRate)
-    || !probability(supporterTurnoutRate)
-    || supporterTurnoutRate === 0
-    || voteGoal === null
-    || !Number.isFinite(voteGoal)
-    || voteGoal < 0
-    || !probability(coverageTarget)
   ) {
-    return null;
+    return { derivation: null, snapshots: [], issues: [] };
   }
 
-  const attempts = shifts! * attemptsPerShift!;
-  const objective = calculateSupportIdObjective({
-    campaignVoteGoal: voteGoal,
-    idCoverageTarget: coverageTarget!,
-    supporterTurnoutRate: supporterTurnoutRate!,
-    attempts,
+  const outreachInput = {
+    uniqueReachTarget,
+    contactDepthTarget,
     perAttemptContactRate: contactRate!,
-    idCompletionRate: idConversionRate!,
-    supportRate: 1,
-  });
-  const votes = objective.value?.expectedSupportVotesFromIds;
-  const ids = objective.value?.expectedSupportIds;
-  const votesNeeded = objective.value?.supportIdVoteTarget;
-  if (votes == null || ids == null || votesNeeded == null) return null;
+    ...(nonNegative(channel.reachableUniverse) ? { reachableUniverse: channel.reachableUniverse! } : {}),
+  };
+  const outreach = calculateOutreachPlan(outreachInput);
+  const issues: ValidationIssue[] = [...outreach.issues];
+  if (outreach.value == null) return { derivation: null, snapshots: [], issues };
 
-  const yieldPerShift = attemptsPerShift! * contactRate! * idConversionRate! * supporterTurnoutRate!;
-  const shiftsToClose = yieldPerShift > 0 ? Math.ceil(votesNeeded / yieldPerShift) : null;
+  const attempts = outreach.value.attemptsGoal;
+  const contacts = outreach.value.expectedSuccessfulContacts;
+  const snapshots: SnapshotDraft[] = [
+    {
+      metricKey: `outreach.attempts_goal.${channelId}`,
+      modeledValue: attempts,
+      adoptedValue: attempts,
+      formulaId: 'outreach.attempts.v0.2',
+      inputs: { ...outreachInput },
+      evidenceRefs: [],
+    },
+    {
+      metricKey: `outreach.successful_contacts_expected.${channelId}`,
+      modeledValue: contacts,
+      adoptedValue: contacts,
+      formulaId: 'outreach.contacts.v0.2',
+      inputs: { ...outreachInput },
+      evidenceRefs: [],
+    },
+  ];
+
+  const contactGoalAttempts = attemptsRequiredForContactGoal(contacts, contactRate!);
+  issues.push(...contactGoalAttempts.issues);
+  if (contactGoalAttempts.value != null) {
+    snapshots.push({
+      metricKey: `outreach.attempts_for_contact_goal.${channelId}`,
+      modeledValue: contactGoalAttempts.value,
+      adoptedValue: contactGoalAttempts.value,
+      formulaId: 'outreach.attempts.v0.2',
+      inputs: { desiredSuccessfulContacts: contacts, perAttemptContactRate: contactRate! },
+      evidenceRefs: [],
+    });
+  }
+
+  let shifts: number | null = null;
+  const attemptsPerShift = positive(channel.attemptsPerCompletedShift) ? channel.attemptsPerCompletedShift : null;
+  if (attemptsPerShift != null && nonNegative(poolWorkers) && nonNegative(shiftsPerWorker)) {
+    const capacityInput = {
+      attemptsGoal: attempts,
+      attemptsPerCompletedShift: attemptsPerShift,
+      workers: poolWorkers!,
+      completedShiftsPerWorker: shiftsPerWorker!,
+      ...(nonNegative(channel.volunteerFlakeRate) && channel.volunteerFlakeRate! < 1
+        ? { volunteerFlakeRate: channel.volunteerFlakeRate! }
+        : {}),
+    };
+    const capacity = calculateCapacity(capacityInput);
+    issues.push(...capacity.issues);
+    if (capacity.value != null) {
+      shifts = capacity.value.completedShiftsRequired;
+      snapshots.push({
+        metricKey: `capacity.completed_shifts_required.${channelId}`,
+        modeledValue: shifts,
+        adoptedValue: shifts,
+        formulaId: 'capacity.shifts.v0.2',
+        inputs: { ...capacityInput },
+        evidenceRefs: [],
+      });
+    }
+  }
+
+  let ids: number | null = null;
+  let votes: number | null = null;
+  let votesNeeded: number | null = null;
+  const canRunObjective = voteGoal != null
+    && Number.isFinite(voteGoal)
+    && voteGoal >= 0
+    && probability(coverageTarget)
+    && probability(supporterTurnoutRate)
+    && supporterTurnoutRate !== 0
+    && probability(idConversionRate);
+  if (canRunObjective) {
+    const objectiveInput = {
+      campaignVoteGoal: voteGoal!,
+      idCoverageTarget: coverageTarget!,
+      supporterTurnoutRate: supporterTurnoutRate!,
+      attempts,
+      perAttemptContactRate: contactRate!,
+      idCompletionRate: idConversionRate!,
+      supportRate: SUPPORT_ID_RATE,
+    };
+    const objective = calculateSupportIdObjective(objectiveInput);
+    issues.push(...objective.issues);
+    votesNeeded = objective.value?.supportIdVoteTarget ?? null;
+    ids = objective.value?.expectedSupportIds ?? null;
+    votes = objective.value?.expectedSupportVotesFromIds ?? null;
+    if (ids != null) {
+      snapshots.push({
+        metricKey: `support_ids.expected.${channelId}`,
+        modeledValue: ids,
+        adoptedValue: ids,
+        formulaId: 'objective.support_id.required.v0.2',
+        inputs: { ...objectiveInput },
+        evidenceRefs: [],
+      });
+    }
+    if (votes != null) {
+      snapshots.push({
+        metricKey: `support_ids.expected_votes.${channelId}`,
+        modeledValue: votes,
+        adoptedValue: votes,
+        formulaId: 'objective.support_id.required.v0.2',
+        inputs: { ...objectiveInput },
+        evidenceRefs: [],
+      });
+    }
+  }
 
   return {
-    channelId,
-    shifts: shifts!,
-    attempts,
-    attemptsPerShift: attemptsPerShift!,
-    contacts: attempts * contactRate!,
-    contactRate: contactRate!,
-    ids,
-    conversionRate: idConversionRate!,
-    votes,
-    supporterTurnoutRate: supporterTurnoutRate!,
-    votesNeeded,
-    shiftsToClose,
+    derivation: {
+      channelId,
+      uniqueReachTarget,
+      contactDepthTarget,
+      shifts,
+      attemptsPerShift,
+      attempts,
+      contacts,
+      contactRate: contactRate!,
+      attemptsForContactGoal: contactGoalAttempts.value,
+      ids,
+      conversionRate: canRunObjective ? idConversionRate : null,
+      votes,
+      supporterTurnoutRate: canRunObjective ? supporterTurnoutRate : null,
+      votesNeeded,
+    },
+    snapshots,
+    issues,
   };
 }
 
@@ -571,6 +690,49 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
     evidenceRefs: [],
   });
 
+  const outreachChains: OutreachDerivation[] = [];
+  const outreachIssues: ValidationIssue[] = [];
+  for (const [channelId, channel] of enabledChannels) {
+    const builtChain = buildOutreachDerivation(
+      channelId,
+      channel,
+      draft.programBudget.supportIdEnabled ? (voteGoal?.value ?? null) : null,
+      draft.programBudget.supportIdCoverageTarget,
+      draft.programBudget.supporterTurnoutRate,
+      draft.programBudget.idConversionRate,
+      draft.programBudget.resourcePoolWorkers,
+      draft.programBudget.completedShiftsPerWorker,
+    );
+    outreachIssues.push(...builtChain.issues);
+    calculations.push(...builtChain.snapshots);
+    if (builtChain.derivation) outreachChains.push(builtChain.derivation);
+  }
+  if (
+    draft.programBudget.supportIdEnabled
+    && voteGoal?.value != null
+    && probability(draft.programBudget.supportIdCoverageTarget)
+    && probability(draft.programBudget.supporterTurnoutRate)
+    && draft.programBudget.supporterTurnoutRate !== 0
+  ) {
+    const requiredInput = {
+      campaignVoteGoal: voteGoal.value,
+      idCoverageTarget: draft.programBudget.supportIdCoverageTarget!,
+      supporterTurnoutRate: draft.programBudget.supporterTurnoutRate!,
+    };
+    const required = calculateSupportIdObjective(requiredInput);
+    outreachIssues.push(...required.issues);
+    if (required.value?.requiredSupportIds != null) {
+      calculations.push({
+        metricKey: 'support_ids.required',
+        modeledValue: required.value.requiredSupportIds,
+        adoptedValue: required.value.requiredSupportIds,
+        formulaId: 'objective.support_id.required.v0.2',
+        inputs: requiredInput,
+        evidenceRefs: [],
+      });
+    }
+  }
+
   const build = await buildPlanVersionRecord({
     planVersionId: identity.planVersionId,
     campaignId: identity.campaignId,
@@ -604,24 +766,10 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
     ...(voteGoal?.issues ?? []),
     ...(universe?.issues ?? []),
     ...(programFeasibility?.issues ?? []),
+    ...outreachIssues,
   ];
 
-  const persuasionChains: PersuasionConversionChain[] = [];
-  if (draft.programBudget.supportIdEnabled) {
-    for (const [channelId, channel] of enabledChannels) {
-      const chain = buildPersuasionConversionChain(
-        channelId,
-        channel,
-        voteGoal?.value ?? null,
-        draft.programBudget.supportIdCoverageTarget,
-        draft.programBudget.supporterTurnoutRate,
-        draft.programBudget.idConversionRate,
-      );
-      if (chain) persuasionChains.push(chain);
-    }
-  }
-
-  return { build, electorate, threshold, voteGoal, universe, programFeasibility, feasibilityGaps, persuasionChains, issues };
+  return { build, electorate, threshold, voteGoal, universe, programFeasibility, feasibilityGaps, outreachChains, issues };
 }
 
 export async function createAcknowledgment(

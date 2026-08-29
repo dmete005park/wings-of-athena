@@ -80,6 +80,7 @@ h3 { margin: 0; font-size: 1rem; font-weight: 500; }
 .remedy-level-one strong { font-size: 1.2rem; font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .allocation-remedy, .no-remedy { margin: 12px 0; font-size: .85rem; color: #4f5b53; }
 .conversion-chain { margin: 12px 0 0; display: grid; gap: 0; }
+.channel-panel .conversion-chain { padding-top: 12px; border-top: 1px solid #f0efea; }
 .conversion-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(6.5rem, auto); gap: 4px 12px; align-items: baseline; padding: 3px 0; }
 .conversion-qty { font-size: .95rem; font-weight: 500; overflow-wrap: anywhere; }
 .conversion-arrow { color: #8d978f; font-weight: 400; margin-right: 6px; }

@@ -21,7 +21,7 @@ import {
   type CampaignPathDraft,
   type ChannelDraft,
   type ChannelId,
-  type PersuasionConversionChain,
+  type OutreachDerivation,
   type ProgramBudgetDraft,
   type ScenarioDraft,
 } from './planBuilder';
@@ -404,27 +404,29 @@ export default function App() {
 
         <div className="channel-grid">
           {(['doors', 'phones'] as ChannelId[]).map((channelId) => (
-            <ChannelPanel key={channelId} channelId={channelId} channel={draft.programBudget.channels[channelId]} update={(key, value) => updateChannel(channelId, key, value)} />
+            <ChannelPanel
+              key={channelId}
+              channelId={channelId}
+              channel={draft.programBudget.channels[channelId]}
+              update={(key, value) => updateChannel(channelId, key, value)}
+              chain={built?.outreachChains.find((item) => item.channelId === channelId)}
+            />
           ))}
         </div>
 
-        {built && (built.feasibilityGaps.length > 0 || persuasionShortfalls(built.persuasionChains, built.feasibilityGaps).length > 0) && (
+        {built && built.feasibilityGaps.length > 0 && (
           <div className="gap-list" aria-label="Feasibility constraints">
             {built.feasibilityGaps.map((gap) => (
               <GapCard
                 key={gap.gapId}
                 gap={gap}
                 built={built}
-                chain={chainForGap(gap, built.persuasionChains)}
                 gapFingerprint={gapFingerprints[gap.gapId]}
                 existingAck={draft.feasibilityAcknowledgments.find((item) => item.gapId === gap.gapId)}
                 reason={ackReasons[gap.gapId] ?? ''}
                 setReason={(value: string) => setAckReasons((current) => ({ ...current, [gap.gapId]: value }))}
                 acknowledge={() => { void acknowledgeGap(gap); }}
               />
-            ))}
-            {persuasionShortfalls(built.persuasionChains, built.feasibilityGaps).map((chain) => (
-              <PersuasionOutputCard key={`persuasion:${chain.channelId}`} chain={chain} />
             ))}
           </div>
         )}
@@ -531,7 +533,17 @@ function Metric({ label, value }: { label: string; value: number | null | undefi
   return <article className="metric-card"><p>{label}</p><strong>{value == null ? 'NO DATA' : formatNumber.format(value)}</strong></article>;
 }
 
-function ChannelPanel({ channelId, channel, update }: { channelId: ChannelId; channel: ChannelDraft; update: <K extends keyof ChannelDraft>(key: K, value: ChannelDraft[K]) => void }) {
+function ChannelPanel({
+  channelId,
+  channel,
+  update,
+  chain,
+}: {
+  channelId: ChannelId;
+  channel: ChannelDraft;
+  update: <K extends keyof ChannelDraft>(key: K, value: ChannelDraft[K]) => void;
+  chain?: OutreachDerivation;
+}) {
   const title = channelId === 'doors' ? 'Doors' : 'Phones';
   return (
     <div className="panel channel-panel">
@@ -545,22 +557,10 @@ function ChannelPanel({ channelId, channel, update }: { channelId: ChannelId; ch
         <OptionalPercentField label="Contact rate" guide={FIELD_GUIDES.perAttemptContactRate} value={channel.perAttemptContactRate} onChange={(value) => update('perAttemptContactRate', value)} />
         <OptionalPercentField label="Flake rate" guide={FIELD_GUIDES.volunteerFlakeRate} value={channel.volunteerFlakeRate} onChange={(value) => update('volunteerFlakeRate', value)} />
         <OptionalNumberField label="Cost / shift" guide={FIELD_GUIDES.costPerCompletedShift} value={channel.costPerCompletedShift} onChange={(value) => update('costPerCompletedShift', value)} />
+        {chain && <OutreachChain chain={chain} />}
       </>}
     </div>
   );
-}
-
-function chainForGap(gap: FeasibilityGapRecord, chains: PersuasionConversionChain[] | undefined): PersuasionConversionChain | undefined {
-  if (gap.constraintType !== 'CAPACITY' || !gap.gapId.startsWith('capacity:')) return undefined;
-  const channelId = gap.gapId.slice('capacity:'.length);
-  return chains?.find((item) => item.channelId === channelId && item.votes < item.votesNeeded);
-}
-
-function persuasionShortfalls(chains: PersuasionConversionChain[] | undefined, gaps: FeasibilityGapRecord[]): PersuasionConversionChain[] {
-  const covered = new Set(
-    gaps.filter((gap) => gap.constraintType === 'CAPACITY' && gap.gapId.startsWith('capacity:')).map((gap) => gap.gapId.slice('capacity:'.length)),
-  );
-  return (chains ?? []).filter((chain) => chain.votes < chain.votesNeeded && !covered.has(chain.channelId));
 }
 
 function formatRate(rate: number): string {
@@ -568,64 +568,53 @@ function formatRate(rate: number): string {
   return `${pct}%`.replace(/\.0%$/, '%');
 }
 
-function ConversionChain({ chain }: { chain: PersuasionConversionChain }) {
+function formatDepth(depth: number): string {
+  const rounded = Math.round(depth * 10) / 10;
+  return `${rounded}`.replace(/\.0$/, '');
+}
+
+function OutreachChain({ chain }: { chain: OutreachDerivation }) {
   return (
-    <div className="conversion-chain">
+    <div className="conversion-chain" aria-label="Attempts to votes">
+      {chain.shifts != null && (
+        <div className="conversion-step">
+          <span className="conversion-qty tabular">{formatNumber.format(chain.shifts)} shifts</span>
+          <span className="conversion-note">{chain.attemptsPerShift != null ? `${formatNumber.format(chain.attemptsPerShift)} per shift` : ''}</span>
+        </div>
+      )}
       <div className="conversion-step">
-        <span className="conversion-qty tabular">{formatNumber.format(chain.shifts)} shifts</span>
-        <span className="conversion-note" />
-      </div>
-      <div className="conversion-step">
-        <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.attempts)} attempts</span>
-        <span className="conversion-note">{formatNumber.format(chain.attemptsPerShift)} per shift</span>
+        <span className="conversion-qty tabular">{chain.shifts != null && <span className="conversion-arrow" aria-hidden="true">→</span>}{formatNumber.format(chain.attempts)} attempts</span>
+        <span className="conversion-note">{formatNumber.format(chain.uniqueReachTarget)} unique reach × {formatDepth(chain.contactDepthTarget)} depth</span>
       </div>
       <div className="conversion-step">
         <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.contacts)} contacts</span>
         <span className="conversion-note">{formatRate(chain.contactRate)} contact rate</span>
       </div>
-      <div className="conversion-step">
-        <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.ids)} IDs</span>
-        <span className="conversion-note">{formatRate(chain.conversionRate)} conversion</span>
-      </div>
-      <div className="conversion-step">
-        <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.votes)} votes</span>
-        <span className="conversion-note">{formatRate(chain.supporterTurnoutRate)} supporter turnout</span>
-      </div>
-      <div className="conversion-step conversion-need">
-        <span className="conversion-qty" />
-        <span className="conversion-note">need {formatNumber.format(chain.votesNeeded)}</span>
-      </div>
-      {chain.shiftsToClose != null && (
-        <p className="conversion-shifts-close tabular">{formatNumber.format(chain.shiftsToClose)} shifts at these rates</p>
+      {chain.ids != null && chain.conversionRate != null && (
+        <div className="conversion-step">
+          <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.ids)} IDs</span>
+          <span className="conversion-note">{formatRate(chain.conversionRate)} conversion</span>
+        </div>
+      )}
+      {chain.votes != null && chain.supporterTurnoutRate != null && (
+        <div className="conversion-step">
+          <span className="conversion-qty tabular"><span className="conversion-arrow" aria-hidden="true">→</span>{formatNumber.format(chain.votes)} votes</span>
+          <span className="conversion-note">{formatRate(chain.supporterTurnoutRate)} supporter turnout</span>
+        </div>
+      )}
+      {chain.votesNeeded != null && (
+        <div className="conversion-step conversion-need">
+          <span className="conversion-qty" />
+          <span className="conversion-note">need {formatNumber.format(chain.votesNeeded)}</span>
+        </div>
       )}
     </div>
   );
 }
 
-function PersuasionHeadline({ chain }: { chain: PersuasionConversionChain }) {
-  return (
-    <div>
-      <p className="eyebrow">Short of the vote need</p>
-      <h3 className="tabular">{formatNumber.format(chain.votes)} of {formatNumber.format(chain.votesNeeded)} votes</h3>
-    </div>
-  );
-}
-
-function PersuasionOutputCard({ chain }: { chain: PersuasionConversionChain }) {
-  return (
-    <article className="gap-card gap-persuasion">
-      <div className="gap-heading">
-        <PersuasionHeadline chain={chain} />
-      </div>
-      <ConversionChain chain={chain} />
-    </article>
-  );
-}
-
-function GapCard({ gap, built, chain, gapFingerprint, existingAck, reason, setReason, acknowledge }: {
+function GapCard({ gap, built, gapFingerprint, existingAck, reason, setReason, acknowledge }: {
   gap: FeasibilityGapRecord;
   built: NonNullable<Awaited<ReturnType<typeof buildScenarioPlan>>>;
-  chain?: PersuasionConversionChain;
   gapFingerprint?: string;
   existingAck?: FeasibilityAcknowledgment;
   reason: string;
@@ -636,24 +625,18 @@ function GapCard({ gap, built, chain, gapFingerprint, existingAck, reason, setRe
   const channelId = gap.gapId.includes(':') ? gap.gapId.split(':')[1] : '';
   const channelResult = built.programFeasibility?.value?.channels.find((item) => item.channelId === channelId);
   const conflict = built.programFeasibility?.value?.allocationConflicts.find((item) => gap.gapId === `allocation:${item.resourcePoolId}`);
-  const persuasion = gap.constraintType === 'CAPACITY' && chain != null && chain.votes < chain.votesNeeded;
 
   return (
     <article className={`gap-card gap-${gap.constraintType.toLowerCase()}`}>
       <div className="gap-heading">
-        {persuasion ? (
-          <PersuasionHeadline chain={chain} />
-        ) : (
-          <div>
-            <p className="eyebrow">{plainConstraint(gap.constraintType)}</p>
-            <h3 className="tabular">{gap.gap.toLocaleString()}</h3>
-          </div>
-        )}
+        <div>
+          <p className="eyebrow">{plainConstraint(gap.constraintType)}</p>
+          <h3 className="tabular">{gap.gap.toLocaleString()}</h3>
+        </div>
         {existingAck && !stale && <span className="ack-badge">OK</span>}
       </div>
       {stale && existingAck && <div className="stale-delta"><strong>Changed</strong><p>{existingAck.gap.toLocaleString()} → {gap.gap.toLocaleString()}</p></div>}
-      {persuasion && <ConversionChain chain={chain} />}
-      {gap.constraintType === 'CAPACITY' && channelResult && !persuasion && (
+      {gap.constraintType === 'CAPACITY' && channelResult && (
         <>
           <div className="remedy-level-one"><div><span>Workers</span><strong>+{channelResult.additionalWorkersRequired}</strong></div><div><span>Cost</span><strong>{channelResult.incrementalCost == null ? 'NO DATA' : formatMoney.format(channelResult.incrementalCost)}</strong></div></div>
           <details><summary>Shift math</summary><p>+{channelResult.additionalCompletedShiftsRequired} shifts{channelResult.additionalScheduledShiftsRequired != null ? ` · +${channelResult.additionalScheduledShiftsRequired} scheduled` : ''}</p>{channelResult.additionalScheduledShiftsPerActiveDay != null && <p>{channelResult.additionalScheduledShiftsPerActiveDay.toFixed(1)} / day</p>}</details>

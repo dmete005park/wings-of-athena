@@ -120,3 +120,105 @@ test('each snapshot inputs cover the formula parameters actually used', async ()
   assert.equal(universeSnap.inputs.voteGoal, voteGoal.value);
   assert.deepEqual(universeSnap.inputs.method, { type: 'VOTE_GOAL_MULTIPLIER', multiplier: 2 });
 });
+
+/**
+ * Invented channel program on the 500-voter / 200-vote-goal plurality fixture.
+ * unique reach 1000 × depth 2 → 2000 attempts; × 0.5 contact rate → 1000 contacts.
+ * 2000 attempts at 40 per shift → 50 shifts.
+ * Support-ID funnel at 0.5 conversion and 0.5 turnout → 500 IDs, 250 votes; need 200.
+ */
+function knownOutreachDraft() {
+  const draft = knownDraft({ type: 'PLURALITY', expectedWinningShare: 0.4 }, 0.4);
+  draft.programBudget.supportIdEnabled = true;
+  draft.programBudget.supportIdCoverageTarget = 1;
+  draft.programBudget.supporterTurnoutRate = 0.5;
+  draft.programBudget.idConversionRate = 0.5;
+  draft.programBudget.resourcePoolWorkers = 10;
+  draft.programBudget.completedShiftsPerWorker = 5;
+  draft.programBudget.channels.doors = {
+    enabled: true,
+    uniqueReachTarget: 1000,
+    reachableUniverse: 1200,
+    contactDepthTarget: 2,
+    attemptsPerCompletedShift: 40,
+    allocatedCompletedShifts: 50,
+    perAttemptContactRate: 0.5,
+    volunteerFlakeRate: null,
+    costPerCompletedShift: null,
+  };
+  return draft;
+}
+
+test('outreach chain uses engine functions and records snapshots for a known input set', async () => {
+  const { build, voteGoal, outreachChains } = await buildScenarioPlan(knownOutreachDraft(), identity);
+
+  assert.equal(voteGoal.value, 200);
+  assert.equal(outreachChains.length, 1);
+  const chain = outreachChains[0];
+  assert.equal(chain.channelId, 'doors');
+  assert.equal(chain.attempts, 2000);
+  assert.equal(chain.contacts, 1000);
+  assert.equal(chain.attemptsForContactGoal, 2000);
+  assert.equal(chain.shifts, 50);
+  assert.equal(chain.ids, 500);
+  assert.equal(chain.votes, 250);
+  assert.equal(chain.votesNeeded, 200);
+
+  const attemptsSnap = snapshot(build.record, 'outreach.attempts_goal.doors');
+  assert.equal(attemptsSnap.formulaId, 'outreach.attempts.v0.2');
+  assert.equal(attemptsSnap.modeledValue, 2000);
+  assert.equal(attemptsSnap.inputs.uniqueReachTarget, 1000);
+  assert.equal(attemptsSnap.inputs.contactDepthTarget, 2);
+  assert.equal(attemptsSnap.inputs.perAttemptContactRate, 0.5);
+  assert.equal(attemptsSnap.inputs.reachableUniverse, 1200);
+
+  const contactsSnap = snapshot(build.record, 'outreach.successful_contacts_expected.doors');
+  assert.equal(contactsSnap.formulaId, 'outreach.contacts.v0.2');
+  assert.equal(contactsSnap.modeledValue, 1000);
+  assert.equal(contactsSnap.inputs.uniqueReachTarget, 1000);
+  assert.equal(contactsSnap.inputs.contactDepthTarget, 2);
+  assert.equal(contactsSnap.inputs.perAttemptContactRate, 0.5);
+  assert.equal(contactsSnap.inputs.reachableUniverse, 1200);
+
+  const inverseSnap = snapshot(build.record, 'outreach.attempts_for_contact_goal.doors');
+  assert.equal(inverseSnap.modeledValue, 2000);
+  assert.equal(inverseSnap.inputs.desiredSuccessfulContacts, 1000);
+  assert.equal(inverseSnap.inputs.perAttemptContactRate, 0.5);
+
+  const shiftsSnap = snapshot(build.record, 'capacity.completed_shifts_required.doors');
+  assert.equal(shiftsSnap.formulaId, 'capacity.shifts.v0.2');
+  assert.equal(shiftsSnap.modeledValue, 50);
+  assert.equal(shiftsSnap.inputs.attemptsGoal, 2000);
+  assert.equal(shiftsSnap.inputs.attemptsPerCompletedShift, 40);
+  assert.equal(shiftsSnap.inputs.workers, 10);
+  assert.equal(shiftsSnap.inputs.completedShiftsPerWorker, 5);
+
+  const requiredSnap = snapshot(build.record, 'support_ids.required');
+  assert.equal(requiredSnap.modeledValue, 400);
+  assert.equal(requiredSnap.inputs.campaignVoteGoal, 200);
+  assert.equal(requiredSnap.inputs.idCoverageTarget, 1);
+  assert.equal(requiredSnap.inputs.supporterTurnoutRate, 0.5);
+
+  const expectedIdsSnap = snapshot(build.record, 'support_ids.expected.doors');
+  assert.equal(expectedIdsSnap.modeledValue, 500);
+  assert.equal(expectedIdsSnap.inputs.attempts, 2000);
+  assert.equal(expectedIdsSnap.inputs.perAttemptContactRate, 0.5);
+  assert.equal(expectedIdsSnap.inputs.idCompletionRate, 0.5);
+  assert.equal(expectedIdsSnap.inputs.supportRate, 1);
+  assert.equal(expectedIdsSnap.inputs.campaignVoteGoal, 200);
+  assert.equal(expectedIdsSnap.inputs.idCoverageTarget, 1);
+  assert.equal(expectedIdsSnap.inputs.supporterTurnoutRate, 0.5);
+
+  const expectedVotesSnap = snapshot(build.record, 'support_ids.expected_votes.doors');
+  assert.equal(expectedVotesSnap.modeledValue, 250);
+  assert.equal(expectedVotesSnap.inputs.attempts, 2000);
+});
+
+test('outreach chain is absent when unique reach, depth, or contact rate is missing', async () => {
+  const draft = knownOutreachDraft();
+  draft.programBudget.channels.doors.uniqueReachTarget = null;
+  const { outreachChains, build } = await buildScenarioPlan(draft, identity);
+  assert.equal(outreachChains.length, 0);
+  assert.equal(snapshot(build.record, 'outreach.attempts_goal.doors'), undefined);
+});
+
