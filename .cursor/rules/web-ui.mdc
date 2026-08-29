@@ -1,0 +1,21 @@
+---
+description: "Manager-facing UI: never hardcode decisions; snapshots record consumed inputs"
+globs: ["apps/web/**"]
+alwaysApply: true
+---
+
+# Web UI
+
+Layout, disclosure, and status rules: `architecture.mdc`.
+
+## Never hardcode a manager decision
+
+Any value a manager can set is passed from her input. The UI never substitutes a literal for a manager decision, and never records a literal in a calculation snapshot.
+
+Race rule, target share, turnout rates, multipliers, capacity, productivity, costs — all come from campaign inputs. If a screen needs a value the input layer doesn't supply yet, say so and stop. Do not substitute a literal to make the screen render.
+
+A placeholder that ships becomes the behavior. `planBuilder.ts` hardcoded `{ type: 'MAJORITY', requiredShare: 0.5 }` for ten sprints, which made the election-type field decorative and produced a false majority line on a plurality race.
+
+## Calculation snapshots record what the formula consumed
+
+Every input the calculation actually used, with the values used. Engine Rule 10 requires reproducibility from stored inputs. A snapshot recording `{ eligibleVoters }` for a formula that consumed three propensity counts and three turnout rates cannot be reproduced, and adopted plans are immutable — a bad snapshot cannot be corrected later.
