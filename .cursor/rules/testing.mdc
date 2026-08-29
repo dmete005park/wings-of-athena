@@ -1,0 +1,49 @@
+---
+description: "Regression testing, verification before completion, and browser checks"
+alwaysApply: true
+---
+
+# Testing
+
+Every important business rule should have regression coverage. Do not weaken tests merely to make them pass.
+
+## Calculation tests
+
+Location: `packages/math-engine/tests/*.cjs`, `packages/plan-domain/tests/*.cjs`
+
+For calculation changes, test:
+
+- normal values
+- zero values
+- boundary values
+- missing values where applicable
+
+Fixtures use invented round numbers, never plausible real-world campaign data.
+
+## Before declaring work complete
+
+- run targeted tests
+- run the full test suite
+- run the production build
+- inspect the complete diff
+
+```bash
+npm run test -w @wings/math-engine    # targeted math
+npm run test -w @wings/plan-domain    # targeted plan-domain
+npm test                            # full suite + classification guard
+npm run build                       # production build
+```
+
+Report actual command output. Do not claim success you have not observed.
+
+## User-facing changes
+
+Verify the workflow in the browser. Use the `ui-review` skill for manager-perspective review.
+
+Primary flow: Campaign Setup → Path to Victory → Program & Budget → Adopt Plan.
+
+Check desktop and mobile (390px) for major workflows.
+
+## Pre-release
+
+Use the `release-check` skill before release or production deployment.

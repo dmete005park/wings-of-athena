@@ -1,0 +1,68 @@
+---
+description: "Business-critical campaign calculations: purity, formulas, assumptions, and change protocol"
+globs: ["packages/math-engine/**"]
+alwaysApply: false
+---
+
+# Campaign Math
+
+Treat campaign calculations as business-critical logic. Use the `campaign-calculation-change` skill for any formula change.
+
+## Purity and determinism
+
+Pure TypeScript. No side effects, no I/O, no randomness. Every function takes inputs and returns data — it never writes anywhere.
+
+- No imports from React, Netlify, storage, `fetch`, `fs`, or any database client.
+- No reads of `Date.now()`, `Math.random()`, `process.env`, or `localStorage`. Pass the current date in as a parameter when needed.
+
+Same inputs must always produce same outputs.
+
+Never add a model, heuristic, scoring function, or AI call. Status is rule precedence over named alerts, not a composite score.
+
+## Never silently change
+
+- turnout assumptions
+- win-number formulas
+- voter propensity definitions
+- voter universe definitions
+- support assumptions
+- persuasion assumptions
+- contact-rate assumptions
+- GOTV assumptions
+
+Before changing campaign math:
+
+1. identify the existing formula
+2. identify the assumptions
+3. identify downstream calculations
+4. provide a worked numerical example
+5. add regression tests
+
+## Registries and versioning
+
+`metricRegistry.ts` and `assumptionRegistry.ts` hold stable keys. Never use bare string keys at call sites.
+
+Formula IDs carry a version suffix (`victory.vote_goal.v0.2`). Behavior changes require a new formula ID and `MATH_ENGINE_VERSION` bump in `index.ts`.
+
+`calibration.ts` defines profile SHAPE only — it MUST NOT contain values.
+
+- `NULL_CALIBRATION_PROFILE` stays empty. Do not populate it with "sensible defaults."
+- Empirical estimates and alert thresholds belong in private `@wings/calibration-profiles`, passed in at runtime. The engine never fetches a profile; it receives one.
+
+Every assumption carries an `EvidenceClass`. `PRODUCT_PLACEHOLDER` means provisional and the UI must label it. `isCustomerFacingPermitted()` gates restricted sources — never bypass it.
+
+NEVER hard-code a strategic cushion. Target share defaults to the mathematical 50% baseline.
+
+## Universe and capacity
+
+Strategic Desired, Reachable, and Capacity-Supported universes are distinct stages. Reachability gap and capacity gap are reported separately.
+
+Shared resource pools with explicit channel allocations. Two channels sharing a pool MUST NOT each see the full pool. Over-allocation is an `ALLOCATION` constraint, distinct from a `CAPACITY` shortfall. See `docs/PROGRAM_BUDGET_CAPACITY_MODEL.md` before touching `programBudget.ts` or `capacity.ts`.
+
+Where a flake rate is modeled, distinguish completed shifts from scheduled shifts. Calendar-facing numbers use scheduled.
+
+## Tests
+
+Tests are `.cjs` files under `tests/`. Every new formula gets a unit test. Fixtures use invented round numbers, never plausible real-world ones. Test normal, zero, boundary, and missing values.
+
+Keep shared calculations centralized. Do not duplicate campaign math across components.

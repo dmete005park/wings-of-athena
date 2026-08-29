@@ -1,0 +1,70 @@
+---
+description: "Module boundaries, plan lifecycle, UI architecture, and extension over rewrite"
+alwaysApply: true
+---
+
+# Architecture
+
+Inspect the existing implementation before introducing new architecture. Prefer extending existing modules over creating parallel systems. Prefer small, traceable changes over broad rewrites. Do not refactor unrelated code while implementing a feature unless explicitly requested.
+
+## Module boundaries
+
+```
+apps/web                  React manager UI — presentation only
+packages/math-engine      Pure deterministic formulas — no I/O
+packages/plan-domain      Plan lifecycle, fingerprints, adoption
+netlify/functions         Server-side integration boundary
+```
+
+- `packages/math-engine` is pure. It MUST NOT import React, Netlify, a database client, storage, or network code. Nothing may import from `apps/web` into a package.
+- Math-engine computes. Plan-domain assembles and verifies. UI renders. Never move lifecycle logic into math-engine.
+- Plan-domain may depend on `@wings/math-engine` and `PlanStore`. It MUST NOT depend on React, Netlify, or any concrete database client.
+- Screens edit draft parts. They NEVER build a `PlanVersionRecord`, input fingerprint, or calculation snapshot — `builder.ts` in `@wings/plan-domain` is the only producer. A screen that builds its own record or hash silently overwrites inputs owned by other screens.
+
+## Plan lifecycle
+
+An ADOPTED plan version is immutable. Enforced in two places — both must stay:
+
+1. Reject an incoming draft that targets an adopted plan.
+2. Reject a write whose ID matches an already-adopted stored record.
+
+The second check exists because the first alone allows a caller to reuse an adopted ID and overwrite it — the fresh draft does not *target* an adopted plan, so check 1 passes. Do not remove check 2 as redundant.
+
+A reforecast is a new child plan version with a new version ID and `parentPlanVersionId`. It never mutates its parent.
+
+`hash.ts` fingerprints must stay stable across object-key ordering. Any canonicalization change invalidates stored fingerprints — treat as breaking.
+
+Adoption verifies four things. Removing any one is a correctness regression:
+
+1. Current canonical input fingerprint matches the saved draft fingerprint.
+2. It matches the fingerprint on every material calculation snapshot.
+3. It matches `expectedInputHash` — the fingerprint of the plan the manager was reviewing when they clicked Adopt. Checks 1 and 2 verify data consistency; only this one verifies the manager saw the version being adopted.
+4. Every material feasibility gap carries a current, non-stale acknowledgment.
+
+Plus: every section marked `requiredForAdoption` is complete. Section requirements are evaluated against the enabled program objective set.
+
+Adoption never silently recomputes. It refuses and reports.
+
+Feasibility acknowledgments store a snapshot plus `gapFingerprint`. If the gap changes, the acknowledgment is stale and adoption fails with `FEASIBILITY_ACK_STALE`. Constraint types: `CAPACITY`, `COST`, `REACHABILITY`, `ALLOCATION`, `OTHER`.
+
+Route adoption errors using structured context on `PlanAdoptionError`. Do not parse error strings in the UI.
+
+## UI architecture
+
+Six primary screens: Campaign Setup, Path to Victory, Program & Budget, Adopt Plan, Command Center, Reforecast.
+
+Progressive disclosure — three levels:
+
+- **Level 1** — the answer (status, goal, gap). Nothing a manager would not act on today.
+- **Level 2** — cause and response in plain English sentences, not formulas.
+- **Level 3** — audit (formulas, metric keys, assumption keys, versions).
+
+390px is the primary layout. Full-width buttons, 44px touch targets, single-column cards, no horizontal overflow.
+
+Status: ON TRACK (green), WATCH (amber), AT RISK (red), NO DATA (hollow gray ring — never performance-positive). Engine `UNAVAILABLE` displays as NO DATA with a hollow gray ring — never a filled dot, never green.
+
+Every status is tappable and names its triggering rule.
+
+No localStorage outside `src/storage/`. No health scores, gauges, or composite status.
+
+Wait for confirmation before changing adoption gates, immutability checks, canonical fingerprints, or the math-engine purity boundary.
