@@ -20,7 +20,10 @@ export const SECTION_PIPELINES = {
 export const FIELD_GUIDES = {
   campaignName: { format: 'Campaign name', flowsTo: 'Plan metadata' },
   office: { format: 'Office title', flowsTo: 'Plan metadata' },
-  electionType: { format: 'Election type', flowsTo: 'Plan metadata' },
+  electionType: { format: 'Primary, general, municipal, special, or other', flowsTo: 'Plan metadata' },
+  raceRule: { format: 'Majority, plurality, runoff, or other', flowsTo: 'Win threshold' },
+  raceRuleShare: { format: '0–100%', flowsTo: 'Win threshold' },
+  raceRuleLabel: { format: 'Name for this rule', flowsTo: 'Win threshold' },
   electionDate: { format: 'Date', flowsTo: 'Plan metadata' },
   geography: { format: 'District or region', flowsTo: 'Plan metadata' },
   eligibleVoters: { format: 'Whole number', flowsTo: 'Segment context' },
