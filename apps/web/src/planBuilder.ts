@@ -1,12 +1,15 @@
 import {
   MATH_ENGINE_VERSION,
-  attemptsRequiredForContactGoal,
+  REQUIRED_PROGRAM_FORMULA,
+  REQUIRED_PROGRAM_METRIC,
+  calculateBreakEvenRates,
   calculateCampaignVoteGoal,
   calculateCapacity,
   calculateExpectedElectorate,
   calculateOutreachPlan,
   calculateProgramBudgetFeasibility,
   calculateRaceThreshold,
+  calculateRequiredProgram,
   calculateSupportIdObjective,
   constructStrategicUniverse,
   type RaceRule,
@@ -71,6 +74,7 @@ export interface ProgramBudgetDraft {
 /**
  * Attempts → contacts → IDs → votes from engine functions, not inline arithmetic.
  * Shifts are capacity required for the outreach attempts goal.
+ * Required* is the inverse: program size the vote need implies at entered rates.
  */
 export interface OutreachDerivation {
   channelId: ChannelId;
@@ -81,12 +85,18 @@ export interface OutreachDerivation {
   attempts: number;
   contacts: number;
   contactRate: number;
-  attemptsForContactGoal: number | null;
   ids: number | null;
   conversionRate: number | null;
   votes: number | null;
   supporterTurnoutRate: number | null;
   votesNeeded: number | null;
+  requiredIds: number | null;
+  requiredContacts: number | null;
+  requiredAttempts: number | null;
+  requiredShifts: number | null;
+  breakEvenContactRate: number | null;
+  breakEvenAttemptsPerShift: number | null;
+  breakEvenIdConversionRate: number | null;
 }
 
 type SnapshotDraft = Omit<PlanVersionRecord['calculations'][number], 'inputHash'>;
@@ -329,19 +339,6 @@ export function buildOutreachDerivation(
     },
   ];
 
-  const contactGoalAttempts = attemptsRequiredForContactGoal(contacts, contactRate!);
-  issues.push(...contactGoalAttempts.issues);
-  if (contactGoalAttempts.value != null) {
-    snapshots.push({
-      metricKey: `outreach.attempts_for_contact_goal.${channelId}`,
-      modeledValue: contactGoalAttempts.value,
-      adoptedValue: contactGoalAttempts.value,
-      formulaId: 'outreach.attempts.v0.2',
-      inputs: { desiredSuccessfulContacts: contacts, perAttemptContactRate: contactRate! },
-      evidenceRefs: [],
-    });
-  }
-
   let shifts: number | null = null;
   const attemptsPerShift = positive(channel.attemptsPerCompletedShift) ? channel.attemptsPerCompletedShift : null;
   if (attemptsPerShift != null && nonNegative(poolWorkers) && nonNegative(shiftsPerWorker)) {
@@ -416,6 +413,132 @@ export function buildOutreachDerivation(
     }
   }
 
+  let requiredIds: number | null = null;
+  let requiredContacts: number | null = null;
+  let requiredAttempts: number | null = null;
+  let requiredShifts: number | null = null;
+  let breakEvenContactRate: number | null = null;
+  let breakEvenAttemptsPerShift: number | null = null;
+  let breakEvenIdConversionRate: number | null = null;
+
+  const attemptsPerShiftInput = nonNegative(channel.attemptsPerCompletedShift)
+    ? channel.attemptsPerCompletedShift
+    : null;
+  if (votesNeeded != null && canRunObjective) {
+    const requiredInput = {
+      requiredVotes: votesNeeded,
+      supporterTurnoutRate: supporterTurnoutRate!,
+      idConversionRate: idConversionRate!,
+      perAttemptContactRate: contactRate!,
+      ...(attemptsPerShiftInput != null ? { attemptsPerCompletedShift: attemptsPerShiftInput } : {}),
+    };
+    const required = calculateRequiredProgram(requiredInput);
+    issues.push(...required.issues);
+    requiredIds = required.value?.requiredIds ?? null;
+    requiredContacts = required.value?.requiredContacts ?? null;
+    requiredAttempts = required.value?.requiredAttempts ?? null;
+    requiredShifts = required.value?.requiredShifts ?? null;
+    if (requiredIds != null) {
+      snapshots.push({
+        metricKey: `${REQUIRED_PROGRAM_METRIC.IDS}.${channelId}`,
+        modeledValue: requiredIds,
+        adoptedValue: requiredIds,
+        formulaId: REQUIRED_PROGRAM_FORMULA.IDS,
+        inputs: { requiredVotes: votesNeeded, supporterTurnoutRate: supporterTurnoutRate! },
+        evidenceRefs: [],
+      });
+    }
+    if (requiredContacts != null) {
+      snapshots.push({
+        metricKey: `${REQUIRED_PROGRAM_METRIC.CONTACTS}.${channelId}`,
+        modeledValue: requiredContacts,
+        adoptedValue: requiredContacts,
+        formulaId: REQUIRED_PROGRAM_FORMULA.CONTACTS,
+        inputs: { requiredIds, idConversionRate: idConversionRate! },
+        evidenceRefs: [],
+      });
+    }
+    if (requiredAttempts != null) {
+      snapshots.push({
+        metricKey: `${REQUIRED_PROGRAM_METRIC.ATTEMPTS}.${channelId}`,
+        modeledValue: requiredAttempts,
+        adoptedValue: requiredAttempts,
+        formulaId: REQUIRED_PROGRAM_FORMULA.ATTEMPTS,
+        inputs: { desiredSuccessfulContacts: requiredContacts, perAttemptContactRate: contactRate! },
+        evidenceRefs: [],
+      });
+    }
+    if (requiredShifts != null && attemptsPerShiftInput != null) {
+      snapshots.push({
+        metricKey: `${REQUIRED_PROGRAM_METRIC.SHIFTS}.${channelId}`,
+        modeledValue: requiredShifts,
+        adoptedValue: requiredShifts,
+        formulaId: REQUIRED_PROGRAM_FORMULA.SHIFTS,
+        inputs: { requiredAttempts, attemptsPerCompletedShift: attemptsPerShiftInput },
+        evidenceRefs: [],
+      });
+    }
+
+    const breakEven = calculateBreakEvenRates({
+      votesNeeded,
+      attempts,
+      contacts,
+      ...(shifts != null ? { shifts } : {}),
+      supporterTurnoutRate: supporterTurnoutRate!,
+      idConversionRate: idConversionRate!,
+      perAttemptContactRate: contactRate!,
+    });
+    issues.push(...breakEven.issues);
+    breakEvenContactRate = breakEven.value?.contactRate ?? null;
+    breakEvenAttemptsPerShift = breakEven.value?.attemptsPerShift ?? null;
+    breakEvenIdConversionRate = breakEven.value?.idConversionRate ?? null;
+    if (breakEvenContactRate != null) {
+      snapshots.push({
+        metricKey: `${REQUIRED_PROGRAM_METRIC.BREAK_EVEN_CONTACT_RATE}.${channelId}`,
+        modeledValue: breakEvenContactRate,
+        adoptedValue: breakEvenContactRate,
+        formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_CONTACT_RATE,
+        inputs: {
+          votesNeeded,
+          attempts,
+          idConversionRate: idConversionRate!,
+          supporterTurnoutRate: supporterTurnoutRate!,
+        },
+        evidenceRefs: [],
+      });
+    }
+    if (breakEvenIdConversionRate != null) {
+      snapshots.push({
+        metricKey: `${REQUIRED_PROGRAM_METRIC.BREAK_EVEN_ID_CONVERSION}.${channelId}`,
+        modeledValue: breakEvenIdConversionRate,
+        adoptedValue: breakEvenIdConversionRate,
+        formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_ID_CONVERSION,
+        inputs: {
+          votesNeeded,
+          contacts,
+          supporterTurnoutRate: supporterTurnoutRate!,
+        },
+        evidenceRefs: [],
+      });
+    }
+    if (breakEvenAttemptsPerShift != null && shifts != null) {
+      snapshots.push({
+        metricKey: `${REQUIRED_PROGRAM_METRIC.BREAK_EVEN_ATTEMPTS_PER_SHIFT}.${channelId}`,
+        modeledValue: breakEvenAttemptsPerShift,
+        adoptedValue: breakEvenAttemptsPerShift,
+        formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_ATTEMPTS_PER_SHIFT,
+        inputs: {
+          votesNeeded,
+          shifts,
+          perAttemptContactRate: contactRate!,
+          idConversionRate: idConversionRate!,
+          supporterTurnoutRate: supporterTurnoutRate!,
+        },
+        evidenceRefs: [],
+      });
+    }
+  }
+
   return {
     derivation: {
       channelId,
@@ -426,12 +549,18 @@ export function buildOutreachDerivation(
       attempts,
       contacts,
       contactRate: contactRate!,
-      attemptsForContactGoal: contactGoalAttempts.value,
       ids,
       conversionRate: canRunObjective ? idConversionRate : null,
       votes,
       supporterTurnoutRate: canRunObjective ? supporterTurnoutRate : null,
       votesNeeded,
+      requiredIds,
+      requiredContacts,
+      requiredAttempts,
+      requiredShifts,
+      breakEvenContactRate,
+      breakEvenAttemptsPerShift,
+      breakEvenIdConversionRate,
     },
     snapshots,
     issues,

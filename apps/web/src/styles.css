@@ -86,6 +86,16 @@ h3 { margin: 0; font-size: 1rem; font-weight: 500; }
 .conversion-arrow { color: #8d978f; font-weight: 400; margin-right: 6px; }
 .conversion-note { color: #6b746e; font-size: .78rem; text-align: right; overflow-wrap: anywhere; }
 .conversion-need .conversion-note { color: #263029; font-weight: 500; }
+.conversion-level-one { margin: 0 0 8px; font-size: .92rem; line-height: 1.4; }
+.conversion-level-one strong { font-weight: 600; }
+.conversion-level-two { margin: 8px 0 0; }
+.conversion-compare { width: 100%; border-collapse: collapse; font-size: .82rem; margin: 8px 0; }
+.conversion-compare th, .conversion-compare td { text-align: right; padding: 3px 0 3px 12px; font-weight: 500; }
+.conversion-compare th:first-child, .conversion-compare td:first-child { text-align: left; padding-left: 0; font-weight: 400; color: #4f5b53; }
+.conversion-compare thead th { color: #6b746e; font-size: .72rem; font-weight: 500; }
+.conversion-derived-note { margin: 4px 0 8px; color: #6b746e; font-size: .78rem; line-height: 1.4; }
+.conversion-breakeven { margin: 8px 0 0; color: #4f5b53; font-size: .82rem; }
+.conversion-breakeven p { margin: 4px 0; }
 .conversion-shifts-close { margin: 10px 0 0; color: #6b746e; font-size: .82rem; }
 details { margin: 10px 0; font-size: .85rem; }
 summary { cursor: pointer; font-weight: 500; }
