@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MATH_ENGINE_VERSION } from '@wings/math-engine';
+import { MATH_ENGINE_VERSION, type RaceRule } from '@wings/math-engine';
 import {
   computeFeasibilityGapFingerprint,
   evaluatePlanAdoptionReadiness,
@@ -14,6 +14,10 @@ import {
   buildScenarioPlan,
   createAcknowledgment,
   createStarterScenario,
+  majorityLineValue,
+  raceRuleShare,
+  raceRuleWithShare,
+  raceRuleWithType,
   type CampaignPathDraft,
   type ChannelDraft,
   type ChannelId,
@@ -176,6 +180,7 @@ export default function App() {
   }, [identity.planVersionId, planStore]);
 
   const currentPlan = built?.build.record ?? null;
+  const majorityLine = majorityLineValue(draft.campaign.raceRule, built?.threshold?.value);
   const planChangedSinceSave = Boolean(storedPlan && currentPlan && storedPlan.inputHash !== currentPlan.inputHash);
   const planIsAdopted = storedPlan?.status === 'ADOPTED' || storedPlan?.status === 'ADOPTED_REFORECAST';
 
@@ -333,6 +338,7 @@ export default function App() {
           <TextField label="Campaign name" guide={FIELD_GUIDES.campaignName} value={draft.campaign.campaignName} onChange={(value) => updateCampaign('campaignName', value)} />
           <TextField label="Office" guide={FIELD_GUIDES.office} value={draft.campaign.office} onChange={(value) => updateCampaign('office', value)} />
           <SelectField label="Election type" guide={FIELD_GUIDES.electionType} value={draft.campaign.electionType} onChange={(value) => updateCampaign('electionType', value as CampaignPathDraft['electionType'])} options={['PRIMARY', 'GENERAL', 'MUNICIPAL', 'SPECIAL', 'OTHER']} />
+          <RaceRuleFields raceRule={draft.campaign.raceRule} onChange={(value) => updateCampaign('raceRule', value)} />
           <TextField label="Election date" guide={FIELD_GUIDES.electionDate} value={draft.campaign.electionDate} onChange={(value) => updateCampaign('electionDate', value)} type="date" />
           <TextField label="Geography" guide={FIELD_GUIDES.geography} value={draft.campaign.geography} onChange={(value) => updateCampaign('geography', value)} />
         </div>
@@ -344,7 +350,9 @@ export default function App() {
         </div>
         <div className="hero-grid" aria-label="Path to victory summary">
           <Metric label="Expected voters" value={built?.electorate.value ?? null} />
-          <Metric label="Majority line" value={built?.threshold?.value ?? null} />
+          {majorityLine != null && (
+            <Metric label="Majority line" value={majorityLine} />
+          )}
           <Metric label="Vote goal" value={built?.voteGoal?.value ?? null} />
           <Metric label="Universe" value={built?.universe?.value ?? null} />
         </div>
@@ -462,6 +470,60 @@ export default function App() {
       </section>
       </>)}
     </main>
+  );
+}
+
+function RaceRuleFields({ raceRule, onChange }: { raceRule: RaceRule | null; onChange: (value: RaceRule | null) => void }) {
+  const type = raceRule?.type ?? '';
+  const share = raceRule ? raceRuleShare(raceRule) : null;
+  const shareLabel = type === 'MAJORITY' ? 'Required share'
+    : type === 'PLURALITY' ? 'Expected winning share'
+    : type === 'RUNOFF' ? 'Advancement share'
+    : type === 'OTHER' ? 'Target share'
+    : 'Threshold share';
+
+  return (
+    <>
+      <label className="field setup-field">
+        <span>Race rule</span>
+        <select
+          value={type}
+          onChange={(event) => {
+            const next = event.target.value as RaceRule['type'] | '';
+            if (!next) {
+              onChange(null);
+              return;
+            }
+            onChange(raceRuleWithType(next, raceRule));
+          }}
+        >
+          {!raceRule && <option value="">Choose a race rule</option>}
+          <option value="MAJORITY">Majority</option>
+          <option value="PLURALITY">Plurality</option>
+          <option value="RUNOFF">Runoff</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </label>
+      {raceRule && share != null && (
+        <PercentField label={shareLabel} guide={FIELD_GUIDES.raceRuleShare} value={share} onChange={(value) => onChange(raceRuleWithShare(raceRule, value))} />
+      )}
+      {raceRule?.type === 'MAJORITY' && (
+        <ToggleField
+          label="Must finish above this share"
+          guide={FIELD_GUIDES.raceRule}
+          checked={raceRule.strictlyGreater !== false}
+          onChange={(value) => onChange({ ...raceRule, strictlyGreater: value })}
+        />
+      )}
+      {raceRule?.type === 'OTHER' && (
+        <TextField
+          label="Rule name"
+          guide={FIELD_GUIDES.raceRuleLabel}
+          value={raceRule.label}
+          onChange={(value) => onChange({ ...raceRule, label: value })}
+        />
+      )}
+    </>
   );
 }
 

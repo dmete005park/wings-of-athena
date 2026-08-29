@@ -6,6 +6,7 @@ import {
   calculateRaceThreshold,
   calculateSupportIdObjective,
   constructStrategicUniverse,
+  type RaceRule,
 } from '@wings/math-engine';
 import {
   buildPlanVersionRecord,
@@ -26,6 +27,7 @@ export interface CampaignPathDraft {
   office: string;
   electionDate: string;
   electionType: ElectionType;
+  raceRule: RaceRule | null;
   geography: string;
   eligibleVoters: number;
   highCount: number;
@@ -97,6 +99,7 @@ export const starterCampaign: CampaignPathDraft = {
   office: '',
   electionDate: '',
   electionType: 'PRIMARY',
+  raceRule: { type: 'MAJORITY', requiredShare: 0.5, strictlyGreater: true },
   geography: '',
   eligibleVoters: 60000,
   highCount: 12000,
@@ -108,6 +111,105 @@ export const starterCampaign: CampaignPathDraft = {
   targetShare: 0.5,
   universeMultiplier: 1.6,
 };
+
+export function electorateInputFrom(campaign: CampaignPathDraft) {
+  return {
+    eligibleVoters: campaign.eligibleVoters,
+    segmentsAreMutuallyExclusive: true as const,
+    segments: [
+      { id: 'high', label: 'High-frequency', count: campaign.highCount, turnoutProbability: campaign.highTurnout },
+      { id: 'mid', label: 'Medium-frequency', count: campaign.midCount, turnoutProbability: campaign.midTurnout },
+      { id: 'low', label: 'Low-frequency', count: campaign.lowCount, turnoutProbability: campaign.lowTurnout },
+    ],
+  };
+}
+
+export function isCompleteRaceRule(value: unknown): value is RaceRule {
+  if (!value || typeof value !== 'object' || !('type' in value)) return false;
+  const rule = value as RaceRule;
+  switch (rule.type) {
+    case 'MAJORITY':
+      return Number.isFinite(rule.requiredShare);
+    case 'PLURALITY':
+      return Number.isFinite(rule.expectedWinningShare);
+    case 'RUNOFF':
+      return Number.isFinite(rule.advancementTargetShare);
+    case 'OTHER':
+      return Number.isFinite(rule.targetShare) && typeof rule.label === 'string' && rule.label.trim().length > 0;
+    default:
+      return false;
+  }
+}
+
+export function raceRuleShare(rule: RaceRule): number {
+  switch (rule.type) {
+    case 'MAJORITY': return rule.requiredShare;
+    case 'PLURALITY': return rule.expectedWinningShare;
+    case 'RUNOFF': return rule.advancementTargetShare;
+    case 'OTHER': return rule.targetShare;
+  }
+}
+
+export function raceRuleWithType(
+  type: RaceRule['type'],
+  previous: RaceRule | null | undefined,
+  otherLabel = '',
+): RaceRule | null {
+  const share = previous ? raceRuleShare(previous) : null;
+  if (share == null) return null;
+  const strictlyGreater = previous?.type === 'MAJORITY' ? previous.strictlyGreater !== false : true;
+  const label = previous?.type === 'OTHER' ? previous.label : otherLabel;
+  switch (type) {
+    case 'MAJORITY': return { type, requiredShare: share, strictlyGreater };
+    case 'PLURALITY': return { type, expectedWinningShare: share };
+    case 'RUNOFF': return { type, advancementTargetShare: share };
+    case 'OTHER': return { type, targetShare: share, label };
+  }
+}
+
+export function raceThresholdFormulaId(rule: RaceRule): string {
+  switch (rule.type) {
+    case 'MAJORITY': return 'victory.threshold.majority.v0.2';
+    case 'PLURALITY': return 'victory.threshold.plurality.v0.2';
+    case 'RUNOFF': return 'victory.threshold.runoff.v0.2';
+    case 'OTHER': return 'victory.threshold.other.v0.2';
+  }
+}
+
+/** A majority line exists only under a majority rule. Plurality has no majority requirement. */
+export function majorityLineValue(
+  raceRule: RaceRule | null | undefined,
+  thresholdValue: number | null | undefined,
+): number | null {
+  if (!raceRule || raceRule.type !== 'MAJORITY') return null;
+  return thresholdValue ?? null;
+}
+
+export function raceRuleWithShare(rule: RaceRule, share: number): RaceRule {
+  switch (rule.type) {
+    case 'MAJORITY': return { type: 'MAJORITY', requiredShare: share, strictlyGreater: rule.strictlyGreater };
+    case 'PLURALITY': return { type: 'PLURALITY', expectedWinningShare: share };
+    case 'RUNOFF': return { type: 'RUNOFF', advancementTargetShare: share };
+    case 'OTHER': return { type: 'OTHER', targetShare: share, label: rule.label };
+  }
+}
+
+function raceRuleAsJson(rule: RaceRule): JsonValue {
+  switch (rule.type) {
+    case 'MAJORITY':
+      return {
+        type: rule.type,
+        requiredShare: rule.requiredShare,
+        ...(rule.strictlyGreater === undefined ? {} : { strictlyGreater: rule.strictlyGreater }),
+      };
+    case 'PLURALITY':
+      return { type: rule.type, expectedWinningShare: rule.expectedWinningShare };
+    case 'RUNOFF':
+      return { type: rule.type, advancementTargetShare: rule.advancementTargetShare };
+    case 'OTHER':
+      return { type: rule.type, targetShare: rule.targetShare, label: rule.label };
+  }
+}
 
 function blankChannel(enabled: boolean): ChannelDraft {
   return {
@@ -219,32 +321,25 @@ export function buildPersuasionConversionChain(
 
 export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIdentity) {
   const campaign = draft.campaign;
-  const electorate = calculateExpectedElectorate({
-    eligibleVoters: campaign.eligibleVoters,
-    segmentsAreMutuallyExclusive: true,
-    segments: [
-      { id: 'high', label: 'High-frequency', count: campaign.highCount, turnoutProbability: campaign.highTurnout },
-      { id: 'mid', label: 'Medium-frequency', count: campaign.midCount, turnoutProbability: campaign.midTurnout },
-      { id: 'low', label: 'Low-frequency', count: campaign.lowCount, turnoutProbability: campaign.lowTurnout },
-    ],
-  });
+  const electorateInput = electorateInputFrom(campaign);
+  const electorate = calculateExpectedElectorate(electorateInput);
+  const raceRule = isCompleteRaceRule(campaign.raceRule) ? campaign.raceRule : null;
 
-  const threshold = electorate.value === null
+  const threshold = electorate.value === null || raceRule === null
     ? null
-    : calculateRaceThreshold(electorate.value, { type: 'MAJORITY', requiredShare: 0.5, strictlyGreater: true });
-  const voteGoal = electorate.value === null || threshold?.value == null
+    : calculateRaceThreshold(electorate.value, raceRule);
+  const voteGoalInput = electorate.value === null
     ? null
-    : calculateCampaignVoteGoal({
+    : {
         adoptedExpectedElectorate: electorate.value,
         adoptedTargetShare: campaign.targetShare,
-        mathematicalThreshold: threshold.value,
-      });
+        ...(threshold?.value != null ? { mathematicalThreshold: threshold.value } : {}),
+      };
+  const voteGoal = voteGoalInput === null ? null : calculateCampaignVoteGoal(voteGoalInput);
+  const universeMethod = { type: 'VOTE_GOAL_MULTIPLIER' as const, multiplier: campaign.universeMultiplier };
   const universe = voteGoal?.value == null
     ? null
-    : constructStrategicUniverse(voteGoal.value, {
-        type: 'VOTE_GOAL_MULTIPLIER',
-        multiplier: campaign.universeMultiplier,
-      });
+    : constructStrategicUniverse(voteGoal.value, universeMethod);
 
   const strategicUniverse = universe?.value ?? null;
   const enabledChannels = (Object.entries(draft.programBudget.channels) as Array<[ChannelId, ChannelDraft]>)
@@ -370,6 +465,7 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
       requiredWhen: { type: 'ALWAYS' },
       fields: [
         { key: 'electorate', present: electorate.value !== null, requiredWhen: { type: 'ALWAYS' } },
+        { key: 'raceRule', present: raceRule !== null, requiredWhen: { type: 'ALWAYS' } },
         { key: 'voteGoal', present: voteGoal?.value != null, requiredWhen: { type: 'ALWAYS' } },
         { key: 'strategicUniverse', present: strategicUniverse !== null, requiredWhen: { type: 'ALWAYS' } },
       ],
@@ -409,6 +505,7 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
       office: campaign.office,
       electionDate: campaign.electionDate,
       electionType: campaign.electionType,
+      raceRule: raceRule ? raceRuleAsJson(raceRule) : null,
       geography: campaign.geography,
       eligibleVoters: campaign.eligibleVoters,
       highCount: campaign.highCount,
@@ -436,19 +533,42 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
   const calculations: Array<Omit<PlanVersionRecord['calculations'][number], 'inputHash'>> = [];
   if (electorate.value !== null) calculations.push({
     metricKey: 'electorate.expected.modeled', modeledValue: electorate.value, adoptedValue: electorate.value,
-    formulaId: 'electorate.expected.v0.2', inputs: { eligibleVoters: campaign.eligibleVoters }, evidenceRefs: [],
+    formulaId: 'electorate.expected.v0.2',
+    inputs: {
+      eligibleVoters: electorateInput.eligibleVoters,
+      segmentsAreMutuallyExclusive: electorateInput.segmentsAreMutuallyExclusive,
+      segments: electorateInput.segments.map((segment) => ({
+        id: segment.id,
+        label: segment.label,
+        count: segment.count,
+        turnoutProbability: segment.turnoutProbability,
+      })),
+    },
+    evidenceRefs: [],
   });
-  if (threshold?.value != null) calculations.push({
+  if (threshold?.value != null && raceRule !== null) calculations.push({
     metricKey: 'victory.threshold', modeledValue: threshold.value, adoptedValue: threshold.value,
-    formulaId: 'victory.threshold.majority.v0.2', inputs: { expectedElectorate: electorate.value, requiredShare: 0.5 }, evidenceRefs: [],
+    formulaId: raceThresholdFormulaId(raceRule),
+    inputs: { expectedElectorate: electorate.value, rule: raceRuleAsJson(raceRule) },
+    evidenceRefs: [],
   });
-  if (voteGoal?.value != null) calculations.push({
+  if (voteGoal?.value != null && voteGoalInput !== null) calculations.push({
     metricKey: 'victory.vote_goal', modeledValue: voteGoal.value, adoptedValue: voteGoal.value,
-    formulaId: 'victory.vote_goal.v0.2', inputs: { expectedElectorate: electorate.value, targetShare: campaign.targetShare }, evidenceRefs: [],
+    formulaId: 'victory.vote_goal.v0.2',
+    inputs: {
+      adoptedExpectedElectorate: voteGoalInput.adoptedExpectedElectorate,
+      adoptedTargetShare: voteGoalInput.adoptedTargetShare,
+      ...(voteGoalInput.mathematicalThreshold != null
+        ? { mathematicalThreshold: voteGoalInput.mathematicalThreshold }
+        : {}),
+    },
+    evidenceRefs: [],
   });
-  if (strategicUniverse !== null) calculations.push({
+  if (strategicUniverse !== null && voteGoal?.value != null) calculations.push({
     metricKey: 'universe.strategic_desired', modeledValue: strategicUniverse, adoptedValue: strategicUniverse,
-    formulaId: 'universe.vote_goal_multiplier.v0.2', inputs: { voteGoal: voteGoal?.value ?? null, multiplier: campaign.universeMultiplier }, evidenceRefs: [],
+    formulaId: 'universe.vote_goal_multiplier.v0.2',
+    inputs: { voteGoal: voteGoal.value, method: universeMethod },
+    evidenceRefs: [],
   });
 
   const build = await buildPlanVersionRecord({
