@@ -117,6 +117,7 @@ summary { cursor: pointer; font-weight: 500; }
 .changed-warning { margin: 10px 0 0; font-size: .82rem; color: #765c27; }
 .blocker-list { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #fff8e8; font-size: .8rem; }
 .blocker-list p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.blocker-list a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .plan-meta { margin: 0; }
 .plan-meta > div { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-bottom: 1px solid #f0efea; }
 .plan-meta dt { color: #6b746e; font-size: .75rem; }

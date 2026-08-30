@@ -5,6 +5,7 @@ const {
   createStarterScenario,
   majorityLineValue,
 } = require('../dist/planBuilder.cjs');
+const { incompleteItems } = require('../dist/adoptLabels.cjs');
 
 const identity = {
   campaignId: 'campaign-test',
@@ -264,6 +265,23 @@ test('outreach chain uses engine functions and records snapshots for a known inp
   const expectedVotesSnap = snapshot(build.record, 'support_ids.expected_votes.doors');
   assert.equal(expectedVotesSnap.modeledValue, 250);
   assert.equal(expectedVotesSnap.inputs.attempts, 2000);
+});
+
+test('starter missing keys map to plain incomplete labels, not section keys', async () => {
+  const draft = createStarterScenario('BASE');
+  const { build } = await buildScenarioPlan(draft, identity);
+  assert.ok(build.missingRequiredKeys.includes('program_budget.channelCapacityInputs'));
+  assert.ok(build.missingRequiredKeys.includes('campaign_setup.office'));
+
+  const items = incompleteItems(build.missingRequiredKeys, draft);
+  const labels = items.map((item) => item.label);
+  assert.ok(labels.includes('Campaign: office'));
+  assert.ok(labels.includes('Campaign: election date'));
+  assert.ok(labels.includes('Campaign: geography'));
+  assert.ok(labels.includes('Program & Budget: workers'));
+  assert.ok(labels.includes('Program & Budget: shifts per worker'));
+  assert.ok(labels.some((label) => label.startsWith('Doors:')));
+  assert.equal(labels.some((label) => /program_budget|channelCapacityInputs|PLAN_/.test(label)), false);
 });
 
 test('outreach chain is absent when unique reach, depth, or contact rate is missing', async () => {

@@ -25,6 +25,7 @@ import {
   type ProgramBudgetDraft,
   type ScenarioDraft,
 } from './planBuilder';
+import { adoptionBlockerItems, incompleteItems } from './adoptLabels';
 import { FIELD_GUIDES, type FieldGuide } from './fieldGuides';
 import { isProductionDeploy, wingsDataMode, wingsDeployContext } from './deployContext';
 import CommandCenter from './CommandCenter';
@@ -383,7 +384,7 @@ export default function App() {
         </div>
 
         <div className="program-grid">
-          <div className="panel">
+          <div className="panel" id="capacity-pool">
             <div className="panel-heading"><div><p className="eyebrow">Pool</p><h2>Capacity</h2></div></div>
             <OptionalNumberField label="Workers" guide={FIELD_GUIDES.resourcePoolWorkers} value={draft.programBudget.resourcePoolWorkers} onChange={(value) => updateProgram('resourcePoolWorkers', value)} />
             <OptionalNumberField label="Shifts per worker" guide={FIELD_GUIDES.completedShiftsPerWorker} value={draft.programBudget.completedShiftsPerWorker} onChange={(value) => updateProgram('completedShiftsPerWorker', value)} step={0.1} />
@@ -391,7 +392,7 @@ export default function App() {
             <OptionalNumberField label="Budget" guide={FIELD_GUIDES.availableBudget} value={draft.programBudget.availableBudget} onChange={(value) => updateProgram('availableBudget', value)} />
           </div>
 
-          <div className="panel">
+          <div className="panel" id="support-ids">
             <div className="panel-heading"><div><p className="eyebrow">Optional</p><h2>Support IDs</h2></div></div>
             <ToggleField label="Enable" guide={FIELD_GUIDES.supportIdEnabled} checked={draft.programBudget.supportIdEnabled} onChange={(value) => updateProgram('supportIdEnabled', value)} />
             {draft.programBudget.supportIdEnabled && <>
@@ -448,8 +449,22 @@ export default function App() {
           <div>
             <div className={`plan-message plan-message-${planAction.kind.toLowerCase()}`} role="status">{planAction.message}</div>
             {planChangedSinceSave && !planIsAdopted && <p className="changed-warning">Inputs changed — save again.</p>}
-            {!built?.build.readyForAdoption && built && <div className="blocker-list"><strong>Incomplete</strong>{built.build.missingRequiredKeys.map((key) => <p key={key}>{key}</p>)}</div>}
-            {storedPlan && !displayReadiness.ready && <div className="blocker-list"><strong>Blockers</strong>{displayReadiness.blockers.map((blocker, index) => <p key={`${blocker.code}-${index}`}>{blocker.code}{blocker.context.gapId ? ` · ${blocker.context.gapId}` : ''}</p>)}</div>}
+            {!built?.build.readyForAdoption && built && (
+              <div className="blocker-list">
+                <strong>Incomplete</strong>
+                {incompleteItems(built.build.missingRequiredKeys, draft).map((item) => (
+                  <p key={item.key}><a href={item.href}>{item.label}</a></p>
+                ))}
+              </div>
+            )}
+            {storedPlan && !displayReadiness.ready && (
+              <div className="blocker-list">
+                <strong>Blockers</strong>
+                {adoptionBlockerItems(displayReadiness.blockers).map((item) => (
+                  <p key={item.key}>{item.href ? <a href={item.href}>{item.label}</a> : item.label}</p>
+                ))}
+              </div>
+            )}
           </div>
           <dl className="plan-meta">
             <div><dt>Scenario</dt><dd>{scenario}</dd></div>
@@ -546,7 +561,7 @@ function ChannelPanel({
 }) {
   const title = channelId === 'doors' ? 'Doors' : 'Phones';
   return (
-    <div className="panel channel-panel">
+    <div className="panel channel-panel" id={`channel-${channelId}`}>
       <div className="panel-heading"><div><h2>{title}</h2></div><ToggleField label="On" guide={FIELD_GUIDES.channelEnabled} checked={channel.enabled} onChange={(value) => update('enabled', value)} compact /></div>
       {channel.enabled && <>
         <OptionalNumberField label="Unique reach" guide={FIELD_GUIDES.uniqueReachTarget} value={channel.uniqueReachTarget} onChange={(value) => update('uniqueReachTarget', value)} />
