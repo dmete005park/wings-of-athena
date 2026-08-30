@@ -12,6 +12,9 @@ button, input, select, textarea { font: inherit; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 
 .shell { width: min(1080px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 24px; }
+#campaign-setup, #path-to-victory, #program-budget, #capacity-pool, #support-ids, #channel-doors, #channel-phones, #adopt-plan {
+  scroll-margin-top: 20px;
+}
 .topbar { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 20px; }
 .topbar > *, .panel-heading > *, .section-intro > *, .adopt-grid > * { min-width: 0; }
 .header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }

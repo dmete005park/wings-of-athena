@@ -453,7 +453,7 @@ export default function App() {
               <div className="blocker-list">
                 <strong>Incomplete</strong>
                 {incompleteItems(built.build.missingRequiredKeys, draft).map((item) => (
-                  <p key={item.key}><a href={item.href}>{item.label}</a></p>
+                  <p key={item.key}><RouteLink href={item.href}>{item.label}</RouteLink></p>
                 ))}
               </div>
             )}
@@ -461,7 +461,7 @@ export default function App() {
               <div className="blocker-list">
                 <strong>Blockers</strong>
                 {adoptionBlockerItems(displayReadiness.blockers).map((item) => (
-                  <p key={item.key}>{item.href ? <a href={item.href}>{item.label}</a> : item.label}</p>
+                  <p key={item.key}>{item.href ? <RouteLink href={item.href}>{item.label}</RouteLink> : item.label}</p>
                 ))}
               </div>
             )}
@@ -541,6 +541,24 @@ function RaceRuleFields({ raceRule, onChange }: { raceRule: RaceRule | null; onC
         />
       )}
     </>
+  );
+}
+
+function RouteLink({ href, children }: { href: string; children: string }) {
+  return (
+    <a
+      href={href}
+      onClick={(event) => {
+        const id = href.startsWith('#') ? href.slice(1) : '';
+        const target = id ? document.getElementById(id) : null;
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.history.replaceState(null, '', href);
+      }}
+    >
+      {children}
+    </a>
   );
 }
 
