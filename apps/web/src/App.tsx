@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MATH_ENGINE_VERSION, type RaceRule } from '@wings/math-engine';
+import { MATH_ENGINE_VERSION, type RaceRule, type VoteCompositionResult } from '@wings/math-engine';
 import {
   computeFeasibilityGapFingerprint,
   evaluatePlanAdoptionReadiness,
@@ -18,6 +18,7 @@ import {
   raceRuleShare,
   raceRuleWithShare,
   raceRuleWithType,
+  normalizeScenarioDraft,
   type CampaignPathDraft,
   type ChannelDraft,
   type ChannelId,
@@ -90,7 +91,7 @@ function ensureIdentity(scenario: ScenarioName): PlanIdentity {
 
 function loadScenario(scenario: ScenarioName): ScenarioDraft {
   const saved = loadScenarioDrafts()[scenario];
-  return saved ?? createStarterScenario(scenario);
+  return saved ? normalizeScenarioDraft(saved) : createStarterScenario(scenario);
 }
 
 export default function App() {
@@ -355,6 +356,8 @@ export default function App() {
             <Metric label="Majority line" value={majorityLine} />
           )}
           <Metric label="Vote goal" value={built?.voteGoal?.value ?? null} />
+          <Metric label="Base votes" value={built?.voteComposition.value?.adoptedBaseVotes ?? null} />
+          <Metric label="Persuasion need" value={built?.voteComposition.value?.persuasionVotesRequired ?? null} />
           <Metric label="Universe" value={built?.universe?.value ?? null} />
         </div>
         <div className="workspace">
@@ -368,6 +371,11 @@ export default function App() {
           <div className="panel">
             <div className="panel-heading"><div><p className="eyebrow">Goal</p><h2>Vote goal & universe</h2></div></div>
             <PercentField label="Target share" guide={FIELD_GUIDES.targetShare} value={draft.campaign.targetShare} onChange={(value) => updateCampaign('targetShare', value)} />
+            <VoteCompositionFields
+              draft={draft.campaign}
+              composition={built?.voteComposition.value ?? undefined}
+              updateCampaign={updateCampaign}
+            />
             <NumberField label="Universe multiplier" guide={FIELD_GUIDES.universeMultiplier} value={draft.campaign.universeMultiplier} onChange={(value) => updateCampaign('universeMultiplier', value)} step={0.1} />
           </div>
         </div>
@@ -564,6 +572,72 @@ function RouteLink({ href, children }: { href: string; children: string }) {
 
 function Metric({ label, value }: { label: string; value: number | null | undefined }) {
   return <article className="metric-card"><p>{label}</p><strong>{value == null ? 'NO DATA' : formatNumber.format(value)}</strong></article>;
+}
+
+function VoteCompositionFields({
+  draft,
+  composition,
+  updateCampaign,
+}: {
+  draft: CampaignPathDraft;
+  composition: VoteCompositionResult | undefined;
+  updateCampaign: <K extends keyof CampaignPathDraft>(key: K, value: CampaignPathDraft[K]) => void;
+}) {
+  const baseShare = composition?.baseVoteShare ?? null;
+  const persuasionShare = composition?.persuasionVoteShare ?? null;
+  const modeled = composition?.modeledBaseVotes ?? null;
+  const residual = composition?.persuasionVotesRequired ?? null;
+  const yieldRequired = composition?.requiredSupporterYield ?? null;
+  const supporters = composition?.requiredPersuasionSupporters ?? null;
+
+  return (
+    <div id="vote-composition" className="composition-block">
+      <p className="eyebrow">Vote composition</p>
+      <p className="composition-question">How many of the campaign&apos;s needed votes do you expect to come from voters already likely to support you?</p>
+      <OptionalNumberField
+        label="Base votes"
+        guide={FIELD_GUIDES.adoptedBaseVotes}
+        value={draft.adoptedBaseVotes ?? null}
+        onChange={(value) => updateCampaign('adoptedBaseVotes', value)}
+      />
+      <p className="composition-readout">
+        {baseShare == null ? 'Share of the vote goal: NO DATA' : `${formatRate(baseShare)} of the vote goal`}
+      </p>
+      {modeled != null && (
+        <p className="composition-readout">
+          Modeled from segments: <strong className="tabular">{formatNumber.format(modeled)}</strong> votes.
+          Your count is the adopted figure; the model stays on record.
+        </p>
+      )}
+      <p className="composition-residual">
+        Persuasion need:{' '}
+        <strong className="tabular">
+          {residual == null ? 'NO DATA' : `${formatNumber.format(residual)} votes`}
+        </strong>
+        {persuasionShare != null ? ` · ${formatRate(persuasionShare)} of the vote goal` : ''}
+        {' '}(updates automatically)
+      </p>
+      <OptionalNumberField
+        label="Persuasion universe"
+        guide={FIELD_GUIDES.persuasionUniverseSize}
+        value={draft.persuasionUniverseSize ?? null}
+        onChange={(value) => updateCampaign('persuasionUniverseSize', value)}
+      />
+      <OptionalPercentField
+        label="Persuasion supporter turnout"
+        guide={FIELD_GUIDES.persuasionSupporterTurnoutRate}
+        value={draft.persuasionSupporterTurnoutRate ?? null}
+        onChange={(value) => updateCampaign('persuasionSupporterTurnoutRate', value)}
+      />
+      {yieldRequired != null && supporters != null && (
+        <p className="composition-yield">
+          The plan requires {formatRate(yieldRequired)} of this persuasion universe
+          ({formatNumber.format(supporters)} supporters) to cover the residual.
+          That is arithmetic from the numbers you entered, not a prediction of what contact will produce.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function ChannelPanel({

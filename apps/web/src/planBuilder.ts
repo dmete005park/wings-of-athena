@@ -11,7 +11,11 @@ import {
   calculateRaceThreshold,
   calculateRequiredProgram,
   calculateSupportIdObjective,
+  computeVoteComposition,
   constructStrategicUniverse,
+  VOTE_COMPOSITION_ASSUMPTION,
+  VOTE_COMPOSITION_FORMULA,
+  VOTE_COMPOSITION_METRIC,
   type RaceRule,
   type ValidationIssue,
 } from '@wings/math-engine';
@@ -45,6 +49,18 @@ export interface CampaignPathDraft {
   lowTurnout: number;
   targetShare: number;
   universeMultiplier: number;
+  adoptedBaseVotes: number | null;
+  persuasionUniverseSize: number | null;
+  persuasionSupporterTurnoutRate: number | null;
+  baseSegments: BaseSegmentDraft[];
+}
+
+export interface BaseSegmentDraft {
+  id?: string;
+  label?: string;
+  baseVoters: number | null;
+  supportProbability: number | null;
+  turnoutProbability: number | null;
 }
 
 export interface ChannelDraft {
@@ -134,7 +150,25 @@ export const starterCampaign: CampaignPathDraft = {
   lowTurnout: 0.4,
   targetShare: 0.5,
   universeMultiplier: 1.6,
+  adoptedBaseVotes: null,
+  persuasionUniverseSize: null,
+  persuasionSupporterTurnoutRate: null,
+  baseSegments: [],
 };
+
+export function normalizeScenarioDraft(draft: ScenarioDraft): ScenarioDraft {
+  return {
+    ...draft,
+    campaign: {
+      ...starterCampaign,
+      ...draft.campaign,
+      adoptedBaseVotes: draft.campaign.adoptedBaseVotes ?? null,
+      persuasionUniverseSize: draft.campaign.persuasionUniverseSize ?? null,
+      persuasionSupporterTurnoutRate: draft.campaign.persuasionSupporterTurnoutRate ?? null,
+      baseSegments: draft.campaign.baseSegments ?? [],
+    },
+  };
+}
 
 export function electorateInputFrom(campaign: CampaignPathDraft) {
   return {
@@ -584,6 +618,30 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
         ...(threshold?.value != null ? { mathematicalThreshold: threshold.value } : {}),
       };
   const voteGoal = voteGoalInput === null ? null : calculateCampaignVoteGoal(voteGoalInput);
+  const adoptedBaseVotes = campaign.adoptedBaseVotes ?? null;
+  const persuasionUniverseSize = campaign.persuasionUniverseSize ?? null;
+  const persuasionSupporterTurnoutRate = campaign.persuasionSupporterTurnoutRate ?? null;
+  const baseSegments = campaign.baseSegments ?? [];
+  const voteComposition = computeVoteComposition({
+    voteGoal: voteGoal?.value ?? null,
+    adoptedBaseVotes,
+    persuasionUniverseSize,
+    persuasionSupporterTurnoutRate,
+    baseSegments,
+  });
+  const composition = voteComposition.value ?? {
+    modeledBaseVotes: null,
+    expectedBaseVotes: [],
+    adoptedBaseVotes: null,
+    persuasionVotesRequired: null,
+    baseVoteShare: null,
+    persuasionVoteShare: null,
+    requiredPersuasionSupporters: null,
+    requiredSupporterYield: null,
+  };
+  const votesTheProgramMustProduce = composition.persuasionVotesRequired != null
+    ? composition.persuasionVotesRequired
+    : (voteGoal?.value ?? null);
   const universeMethod = { type: 'VOTE_GOAL_MULTIPLIER' as const, multiplier: campaign.universeMultiplier };
   const universe = voteGoal?.value == null
     ? null
@@ -764,6 +822,16 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
       lowTurnout: campaign.lowTurnout,
       targetShare: campaign.targetShare,
       universeMultiplier: campaign.universeMultiplier,
+      adoptedBaseVotes,
+      persuasionUniverseSize,
+      persuasionSupporterTurnoutRate,
+      baseSegments: baseSegments.map((segment) => ({
+        ...(segment.id == null ? {} : { id: segment.id }),
+        ...(segment.label == null ? {} : { label: segment.label }),
+        baseVoters: segment.baseVoters,
+        supportProbability: segment.supportProbability,
+        turnoutProbability: segment.turnoutProbability,
+      })),
     },
     programBudget: {
       resourcePoolWorkers: draft.programBudget.resourcePoolWorkers,
@@ -812,6 +880,88 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
     },
     evidenceRefs: [],
   });
+  const modeledBaseVotes = composition.modeledBaseVotes;
+  const consumedBaseSegments = baseSegments.filter((_, index) => (
+    composition.expectedBaseVotes[index] != null
+  ));
+  if (modeledBaseVotes != null) {
+    calculations.push({
+      metricKey: VOTE_COMPOSITION_METRIC.MODELED_BASE_VOTES,
+      modeledValue: modeledBaseVotes,
+      adoptedValue: modeledBaseVotes,
+      formulaId: VOTE_COMPOSITION_FORMULA.MODELED_BASE,
+      inputs: {
+        segments: consumedBaseSegments.map((segment) => ({
+          ...(segment.id == null ? {} : { id: segment.id }),
+          ...(segment.label == null ? {} : { label: segment.label }),
+          baseVoters: segment.baseVoters,
+          supportProbability: segment.supportProbability,
+          turnoutProbability: segment.turnoutProbability,
+        })),
+      },
+      evidenceRefs: [],
+    });
+  }
+  if (voteGoal?.value != null && adoptedBaseVotes != null && Number.isFinite(adoptedBaseVotes) && adoptedBaseVotes >= 0) {
+    calculations.push({
+      metricKey: VOTE_COMPOSITION_METRIC.ADOPTED_BASE_VOTES,
+      modeledValue: modeledBaseVotes,
+      adoptedValue: adoptedBaseVotes,
+      formulaId: VOTE_COMPOSITION_FORMULA.COMPOSITION,
+      inputs: {
+        voteGoal: voteGoal.value,
+        adoptedBaseVotes,
+      },
+      evidenceRefs: [],
+    });
+    if (composition.persuasionVotesRequired != null) {
+      calculations.push({
+        metricKey: VOTE_COMPOSITION_METRIC.PERSUASION_VOTES_REQUIRED,
+        modeledValue: composition.persuasionVotesRequired,
+        adoptedValue: composition.persuasionVotesRequired,
+        formulaId: VOTE_COMPOSITION_FORMULA.COMPOSITION,
+        inputs: {
+          voteGoal: voteGoal.value,
+          adoptedBaseVotes,
+        },
+        evidenceRefs: [],
+      });
+    }
+  }
+  if (
+    composition.requiredPersuasionSupporters != null
+    && composition.persuasionVotesRequired != null
+    && persuasionSupporterTurnoutRate != null
+  ) {
+    calculations.push({
+      metricKey: VOTE_COMPOSITION_METRIC.REQUIRED_PERSUASION_SUPPORTERS,
+      modeledValue: composition.requiredPersuasionSupporters,
+      adoptedValue: composition.requiredPersuasionSupporters,
+      formulaId: VOTE_COMPOSITION_FORMULA.PERSUASION_REQUIREMENT,
+      inputs: {
+        persuasionVotesRequired: composition.persuasionVotesRequired,
+        persuasionSupporterTurnoutRate,
+      },
+      evidenceRefs: [],
+    });
+  }
+  if (
+    composition.requiredSupporterYield != null
+    && composition.requiredPersuasionSupporters != null
+    && persuasionUniverseSize != null
+  ) {
+    calculations.push({
+      metricKey: VOTE_COMPOSITION_METRIC.REQUIRED_SUPPORTER_YIELD,
+      modeledValue: composition.requiredSupporterYield,
+      adoptedValue: composition.requiredSupporterYield,
+      formulaId: VOTE_COMPOSITION_FORMULA.PERSUASION_REQUIREMENT,
+      inputs: {
+        requiredPersuasionSupporters: composition.requiredPersuasionSupporters,
+        persuasionUniverseSize,
+      },
+      evidenceRefs: [],
+    });
+  }
   if (strategicUniverse !== null && voteGoal?.value != null) calculations.push({
     metricKey: 'universe.strategic_desired', modeledValue: strategicUniverse, adoptedValue: strategicUniverse,
     formulaId: 'universe.vote_goal_multiplier.v0.2',
@@ -825,7 +975,7 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
     const builtChain = buildOutreachDerivation(
       channelId,
       channel,
-      draft.programBudget.supportIdEnabled ? (voteGoal?.value ?? null) : null,
+      draft.programBudget.supportIdEnabled ? votesTheProgramMustProduce : null,
       draft.programBudget.supportIdCoverageTarget,
       draft.programBudget.supporterTurnoutRate,
       draft.programBudget.idConversionRate,
@@ -838,13 +988,13 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
   }
   if (
     draft.programBudget.supportIdEnabled
-    && voteGoal?.value != null
+    && votesTheProgramMustProduce != null
     && probability(draft.programBudget.supportIdCoverageTarget)
     && probability(draft.programBudget.supporterTurnoutRate)
     && draft.programBudget.supporterTurnoutRate !== 0
   ) {
     const requiredInput = {
-      campaignVoteGoal: voteGoal.value,
+      campaignVoteGoal: votesTheProgramMustProduce,
       idCoverageTarget: draft.programBudget.supportIdCoverageTarget!,
       supporterTurnoutRate: draft.programBudget.supporterTurnoutRate!,
     };
@@ -877,6 +1027,36 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
       { key: 'turnout.segment.low_frequency', value: campaign.lowTurnout, evidenceRefs: [], source: 'MANAGER' },
       { key: 'victory.target_share', value: campaign.targetShare, evidenceRefs: [], source: 'MANAGER' },
       { key: 'universe.vote_goal_multiplier', value: campaign.universeMultiplier, evidenceRefs: [], source: 'MANAGER' },
+      ...(consumedBaseSegments.length > 0
+        ? [
+            {
+              key: VOTE_COMPOSITION_ASSUMPTION.BASE_SUPPORT,
+              value: consumedBaseSegments.length === 1
+                ? consumedBaseSegments[0].supportProbability
+                : consumedBaseSegments.map((segment) => segment.supportProbability),
+              evidenceRefs: [],
+              source: 'MANAGER' as const,
+            },
+            {
+              key: VOTE_COMPOSITION_ASSUMPTION.BASE_TURNOUT,
+              value: consumedBaseSegments.length === 1
+                ? consumedBaseSegments[0].turnoutProbability
+                : consumedBaseSegments.map((segment) => segment.turnoutProbability),
+              evidenceRefs: [],
+              source: 'MANAGER' as const,
+            },
+          ]
+        : []),
+      ...(persuasionSupporterTurnoutRate != null
+        && Number.isFinite(persuasionSupporterTurnoutRate)
+        && composition.requiredPersuasionSupporters != null
+        ? [{
+            key: VOTE_COMPOSITION_ASSUMPTION.PERSUASION_SUPPORTER_TURNOUT,
+            value: persuasionSupporterTurnoutRate,
+            evidenceRefs: [],
+            source: 'MANAGER' as const,
+          }]
+        : []),
     ],
     overrides: [],
     calculations,
@@ -893,12 +1073,13 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
     ...electorate.issues,
     ...(threshold?.issues ?? []),
     ...(voteGoal?.issues ?? []),
+    ...voteComposition.issues,
     ...(universe?.issues ?? []),
     ...(programFeasibility?.issues ?? []),
     ...outreachIssues,
   ];
 
-  return { build, electorate, threshold, voteGoal, universe, programFeasibility, feasibilityGaps, outreachChains, issues };
+  return { build, electorate, threshold, voteGoal, voteComposition, universe, programFeasibility, feasibilityGaps, outreachChains, issues };
 }
 
 export async function createAcknowledgment(
