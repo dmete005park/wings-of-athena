@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "tsc -p tsconfig.planBuilder.json && mv dist/planBuilder.js dist/planBuilder.cjs && node --test tests/*.test.cjs"
+    "test": "tsc -p tsconfig.planBuilder.json && mv dist/planBuilder.js dist/planBuilder.cjs && mv dist/adoptLabels.js dist/adoptLabels.cjs && node --test tests/*.test.cjs"
   },
   "dependencies": {
     "@wings/math-engine": "0.2.0-alpha.1",
