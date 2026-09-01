@@ -22,6 +22,8 @@ const dec1 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 // adopted plan's calculation snapshots by metricKey; nothing is recomputed.
 const TRACKABLE_KPIS: Array<{ metricKey: string; label: string; unit: string }> = [
   { metricKey: 'victory.vote_goal', label: 'Vote goal', unit: 'votes' },
+  { metricKey: 'victory.adopted_base_votes', label: 'Base votes', unit: 'votes' },
+  { metricKey: 'victory.persuasion_votes_required', label: 'Persuasion need', unit: 'votes' },
   { metricKey: 'universe.strategic_desired', label: 'Voter universe', unit: 'voters' },
   { metricKey: 'outreach.attempts_goal.doors', label: 'Door attempts', unit: 'attempts' },
   { metricKey: 'outreach.attempts_goal.phones', label: 'Phone attempts', unit: 'attempts' },

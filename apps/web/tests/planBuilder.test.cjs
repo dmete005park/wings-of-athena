@@ -284,6 +284,128 @@ test('starter missing keys map to plain incomplete labels, not section keys', as
   assert.equal(labels.some((label) => /program_budget|channelCapacityInputs|PLAN_/.test(label)), false);
 });
 
+/**
+ * Invented composition on the 500-voter / 200-vote-goal plurality fixture.
+ * Adopted base 150 → persuasion need 50; shares 0.75 / 0.25.
+ * Segments 200×0.5×0.5 and 100×1×0.5 → modeled base 100.
+ * Persuasion universe 200 at turnout 0.5 → 100 required supporters, yield 0.5.
+ */
+function knownCompositionDraft() {
+  const draft = knownDraft({ type: 'PLURALITY', expectedWinningShare: 0.4 }, 0.4);
+  draft.campaign.adoptedBaseVotes = 150;
+  draft.campaign.persuasionUniverseSize = 200;
+  draft.campaign.persuasionSupporterTurnoutRate = 0.5;
+  draft.campaign.baseSegments = [
+    { baseVoters: 200, supportProbability: 0.5, turnoutProbability: 0.5 },
+    { baseVoters: 100, supportProbability: 1, turnoutProbability: 0.5 },
+  ];
+  return draft;
+}
+
+test('vote composition snapshots store counts and consumed assumptions from a known input set', async () => {
+  const { build, voteGoal, voteComposition } = await buildScenarioPlan(knownCompositionDraft(), identity);
+
+  assert.equal(voteGoal.value, 200);
+  assert.equal(voteComposition.value.modeledBaseVotes, 100);
+  assert.equal(voteComposition.value.adoptedBaseVotes, 150);
+  assert.equal(voteComposition.value.persuasionVotesRequired, 50);
+  assert.equal(voteComposition.value.baseVoteShare, 0.75);
+  assert.equal(voteComposition.value.persuasionVoteShare, 0.25);
+  assert.equal(voteComposition.value.requiredPersuasionSupporters, 100);
+  assert.equal(voteComposition.value.requiredSupporterYield, 0.5);
+
+  const modeledSnap = snapshot(build.record, 'victory.modeled_base_votes');
+  assert.equal(modeledSnap.formulaId, 'victory.modeled_base_votes.v0.3');
+  assert.equal(modeledSnap.modeledValue, 100);
+  assert.equal(modeledSnap.adoptedValue, 100);
+  assert.deepEqual(modeledSnap.inputs.segments, [
+    { baseVoters: 200, supportProbability: 0.5, turnoutProbability: 0.5 },
+    { baseVoters: 100, supportProbability: 1, turnoutProbability: 0.5 },
+  ]);
+
+  const adoptedSnap = snapshot(build.record, 'victory.adopted_base_votes');
+  assert.equal(adoptedSnap.formulaId, 'victory.vote_composition.v0.3');
+  assert.equal(adoptedSnap.modeledValue, 100);
+  assert.equal(adoptedSnap.adoptedValue, 150);
+  assert.equal(adoptedSnap.inputs.voteGoal, 200);
+  assert.equal(adoptedSnap.inputs.adoptedBaseVotes, 150);
+
+  const residualSnap = snapshot(build.record, 'victory.persuasion_votes_required');
+  assert.equal(residualSnap.formulaId, 'victory.vote_composition.v0.3');
+  assert.equal(residualSnap.modeledValue, 50);
+  assert.equal(residualSnap.adoptedValue, 50);
+  assert.equal(residualSnap.inputs.voteGoal, 200);
+  assert.equal(residualSnap.inputs.adoptedBaseVotes, 150);
+
+  const supportersSnap = snapshot(build.record, 'victory.required_persuasion_supporters');
+  assert.equal(supportersSnap.formulaId, 'victory.persuasion_requirement.v0.3');
+  assert.equal(supportersSnap.modeledValue, 100);
+  assert.equal(supportersSnap.inputs.persuasionVotesRequired, 50);
+  assert.equal(supportersSnap.inputs.persuasionSupporterTurnoutRate, 0.5);
+
+  const yieldSnap = snapshot(build.record, 'victory.required_supporter_yield');
+  assert.equal(yieldSnap.formulaId, 'victory.persuasion_requirement.v0.3');
+  assert.equal(yieldSnap.modeledValue, 0.5);
+  assert.equal(yieldSnap.inputs.requiredPersuasionSupporters, 100);
+  assert.equal(yieldSnap.inputs.persuasionUniverseSize, 200);
+
+  assert.equal(snapshot(build.record, 'victory.base_vote_share'), undefined);
+  assert.equal(snapshot(build.record, 'victory.persuasion_vote_share'), undefined);
+
+  const supportAssumption = build.record.assumptions.find((item) => item.key === 'victory.base_support_probability');
+  const turnoutAssumption = build.record.assumptions.find((item) => item.key === 'victory.base_turnout_probability');
+  const persuasionTurnout = build.record.assumptions.find((item) => item.key === 'victory.persuasion_supporter_turnout_rate');
+  assert.deepEqual(supportAssumption.value, [0.5, 1]);
+  assert.deepEqual(turnoutAssumption.value, [0.5, 0.5]);
+  assert.equal(persuasionTurnout.value, 0.5);
+  assert.equal(build.record.inputs.campaign.adoptedBaseVotes, 150);
+  assert.equal(build.record.mathEngineVersion, '0.2.0-alpha.3');
+});
+
+test('missing adopted base leaves persuasion residual uncomputed and does not invent a default', async () => {
+  const { build, voteComposition, outreachChains } = await buildScenarioPlan(knownOutreachDraft(), identity);
+
+  assert.equal(voteComposition.value.adoptedBaseVotes, null);
+  assert.equal(voteComposition.value.persuasionVotesRequired, null);
+  assert.equal(voteComposition.value.modeledBaseVotes, null);
+  assert.equal(snapshot(build.record, 'victory.adopted_base_votes'), undefined);
+  assert.equal(snapshot(build.record, 'victory.persuasion_votes_required'), undefined);
+  assert.equal(outreachChains[0].votesNeeded, 200);
+});
+
+test('an adopted base override keeps modeled base and uses the residual as the program vote need', async () => {
+  const draft = knownOutreachDraft();
+  draft.campaign.adoptedBaseVotes = 150;
+  draft.campaign.baseSegments = [
+    { baseVoters: 200, supportProbability: 0.5, turnoutProbability: 0.5 },
+    { baseVoters: 100, supportProbability: 1, turnoutProbability: 0.5 },
+  ];
+  const { build, voteComposition, outreachChains } = await buildScenarioPlan(draft, identity);
+
+  assert.equal(voteComposition.value.modeledBaseVotes, 100);
+  assert.equal(voteComposition.value.adoptedBaseVotes, 150);
+  assert.equal(voteComposition.value.persuasionVotesRequired, 50);
+  assert.equal(outreachChains[0].votesNeeded, 50);
+  assert.equal(outreachChains[0].requiredIds, 100);
+  assert.equal(outreachChains[0].requiredContacts, 200);
+  assert.equal(outreachChains[0].requiredAttempts, 400);
+  assert.equal(outreachChains[0].requiredShifts, 10);
+  assert.equal(outreachChains[0].breakEvenContactRate, 0.1);
+  assert.equal(outreachChains[0].breakEvenIdConversionRate, 0.1);
+  assert.equal(outreachChains[0].breakEvenAttemptsPerShift, 8);
+
+  const adoptedSnap = snapshot(build.record, 'victory.adopted_base_votes');
+  assert.equal(adoptedSnap.modeledValue, 100);
+  assert.equal(adoptedSnap.adoptedValue, 150);
+
+  const requiredIdsSnap = snapshot(build.record, 'outreach.ids_required.doors');
+  assert.equal(requiredIdsSnap.inputs.requiredVotes, 50);
+
+  const requiredSupportIds = snapshot(build.record, 'support_ids.required');
+  assert.equal(requiredSupportIds.inputs.campaignVoteGoal, 50);
+  assert.equal(requiredSupportIds.modeledValue, 100);
+});
+
 test('outreach chain is absent when unique reach, depth, or contact rate is missing', async () => {
   const draft = knownOutreachDraft();
   draft.programBudget.channels.doors.uniqueReachTarget = null;

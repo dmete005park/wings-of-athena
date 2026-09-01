@@ -2,6 +2,10 @@ import {
   REQUIRED_PROGRAM_FORMULA,
   REQUIRED_PROGRAM_METRIC,
 } from './requiredProgram';
+import {
+  VOTE_COMPOSITION_FORMULA,
+  VOTE_COMPOSITION_METRIC,
+} from './voteComposition';
 
 export interface MetricDefinition {
   key: string;
@@ -17,6 +21,11 @@ export const METRIC_REGISTRY: readonly MetricDefinition[] = [
   { key: 'electorate.expected.adopted', displayName: 'Adopted Expected Electorate', unit: 'voters', rounding: 'WHOLE_DISPLAY', overridePolicy: 'ALLOW_OVERRIDE' },
   { key: 'victory.threshold', displayName: 'Mathematical Win Threshold', unit: 'votes', formulaId: 'race.threshold.v0.2', rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
   { key: 'victory.vote_goal', displayName: 'Campaign Vote Goal', unit: 'votes', formulaId: 'victory.vote_goal.v0.2', rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'ALLOW_OVERRIDE' },
+  { key: VOTE_COMPOSITION_METRIC.MODELED_BASE_VOTES, displayName: 'Modeled Base Votes', unit: 'votes', formulaId: VOTE_COMPOSITION_FORMULA.MODELED_BASE, rounding: 'WHOLE_DISPLAY', overridePolicy: 'NO_OVERRIDE' },
+  { key: VOTE_COMPOSITION_METRIC.ADOPTED_BASE_VOTES, displayName: 'Adopted Base Votes', unit: 'votes', formulaId: VOTE_COMPOSITION_FORMULA.COMPOSITION, rounding: 'WHOLE_DISPLAY', overridePolicy: 'ALLOW_OVERRIDE' },
+  { key: VOTE_COMPOSITION_METRIC.PERSUASION_VOTES_REQUIRED, displayName: 'Persuasion Votes Required', unit: 'votes', formulaId: VOTE_COMPOSITION_FORMULA.COMPOSITION, rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
+  { key: VOTE_COMPOSITION_METRIC.REQUIRED_PERSUASION_SUPPORTERS, displayName: 'Required Persuasion Supporters', unit: 'supporters', formulaId: VOTE_COMPOSITION_FORMULA.PERSUASION_REQUIREMENT, rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
+  { key: VOTE_COMPOSITION_METRIC.REQUIRED_SUPPORTER_YIELD, displayName: 'Required Supporter Yield', unit: 'share', formulaId: VOTE_COMPOSITION_FORMULA.PERSUASION_REQUIREMENT, rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' },
   { key: 'universe.strategic_desired', displayName: 'Strategic Desired Universe', unit: 'voters', formulaId: 'universe.construct.v0.2', rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'ALLOW_OVERRIDE' },
   { key: 'universe.available', displayName: 'Available Targetable Voters', unit: 'voters', rounding: 'WHOLE_DISPLAY', overridePolicy: 'NO_OVERRIDE' },
   { key: 'universe.capacity_supported', displayName: 'Capacity-Supported Universe', unit: 'voters', formulaId: 'universe.capacity_supported.v0.2', rounding: 'FLOOR_CAPACITY', overridePolicy: 'NO_OVERRIDE' },

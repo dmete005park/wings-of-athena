@@ -12,7 +12,7 @@ button, input, select, textarea { font: inherit; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 
 .shell { width: min(1080px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 24px; }
-#campaign-setup, #path-to-victory, #program-budget, #capacity-pool, #support-ids, #channel-doors, #channel-phones, #adopt-plan {
+#campaign-setup, #path-to-victory, #vote-composition, #program-budget, #capacity-pool, #support-ids, #channel-doors, #channel-phones, #adopt-plan {
   scroll-margin-top: 20px;
 }
 .topbar { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 20px; }
@@ -97,6 +97,11 @@ h3 { margin: 0; font-size: 1rem; font-weight: 500; }
 .conversion-compare th:first-child, .conversion-compare td:first-child { text-align: left; padding-left: 0; font-weight: 400; color: #4f5b53; }
 .conversion-compare thead th { color: #6b746e; font-size: .72rem; font-weight: 500; }
 .conversion-derived-note { margin: 4px 0 8px; color: #6b746e; font-size: .78rem; line-height: 1.4; }
+.composition-block { margin: 8px 0 4px; padding: 10px 0; border-top: 1px solid #f0efea; border-bottom: 1px solid #f0efea; }
+.composition-question { margin: 0 0 8px; color: #263029; font-size: .88rem; line-height: 1.4; }
+.composition-readout, .composition-residual, .composition-yield { margin: 8px 0; color: #4f5b53; font-size: .82rem; line-height: 1.4; }
+.composition-residual { color: #263029; }
+.composition-readout strong, .composition-residual strong { font-weight: 500; font-variant-numeric: tabular-nums; }
 .conversion-breakeven { margin: 8px 0 0; color: #4f5b53; font-size: .82rem; }
 .conversion-breakeven p { margin: 4px 0; }
 .conversion-shifts-close { margin: 10px 0 0; color: #6b746e; font-size: .82rem; }
