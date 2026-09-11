@@ -423,6 +423,10 @@ export default function App() {
           ))}
         </div>
 
+        {built?.budgetProposal?.value && (
+          <BudgetProposalPanel scenario={scenario} proposal={built.budgetProposal.value} />
+        )}
+
         {built && built.feasibilityGaps.length > 0 && (
           <div className="gap-list" aria-label="Feasibility constraints">
             {built.feasibilityGaps.map((gap) => (
@@ -806,6 +810,62 @@ function ProducedForwardSteps({ chain }: { chain: OutreachDerivation }) {
         </div>
       )}
     </>
+  );
+}
+
+function BudgetProposalPanel({
+  scenario,
+  proposal,
+}: {
+  scenario: ScenarioName;
+  proposal: NonNullable<NonNullable<Awaited<ReturnType<typeof buildScenarioPlan>>['budgetProposal']>['value']>;
+}) {
+  const money = (value: number | null) => (value == null ? 'NO DATA' : formatMoney.format(value));
+  return (
+    <section className="panel budget-proposal" aria-label={`${scenario} campaign budget proposal`}>
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Budget proposal</p>
+          <h2>{scenario}</h2>
+        </div>
+        <p className="quiet">From the shifts and unit costs entered for this scenario.</p>
+      </div>
+      <div className="budget-summary">
+        <article><p>Modeled program cost</p><strong>{money(proposal.modeledProgramCost)}</strong></article>
+        <article><p>Available budget</p><strong>{money(proposal.availableBudget)}</strong></article>
+        <article><p>Remaining</p><strong>{money(proposal.remainingBudget)}</strong></article>
+        <article><p>Budget gap</p><strong>{money(proposal.budgetGap)}</strong></article>
+      </div>
+      {(proposal.requiredProgramCost != null || proposal.capacityCloseCost != null) && (
+        <div className="budget-summary secondary">
+          <article><p>Required program cost</p><strong>{money(proposal.requiredProgramCost)}</strong></article>
+          <article><p>Cost to close capacity gaps</p><strong>{money(proposal.capacityCloseCost)}</strong></article>
+        </div>
+      )}
+      {proposal.incompleteCostChannelIds.length > 0 && (
+        <p className="budget-missing">Missing cost / shift for: {proposal.incompleteCostChannelIds.join(', ')}</p>
+      )}
+      <table className="budget-lines">
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>Shifts</th>
+            <th>Cost / shift</th>
+            <th>Line total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {proposal.channelLines.map((line) => (
+            <tr key={line.channelId}>
+              <td>{line.channelId}</td>
+              <td>{formatNumber.format(line.allocatedCompletedShifts)}</td>
+              <td>{money(line.costPerCompletedShift)}</td>
+              <td>{money(line.allocatedCost)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
 

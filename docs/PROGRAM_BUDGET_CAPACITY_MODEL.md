@@ -78,3 +78,15 @@ This allows the future Command Center to explain the original accepted constrain
 The canonical Plan Builder may serialize incomplete drafts. It returns per-section status with exact missing keys so Campaign Setup, Path to Victory, and Program & Budget can be developed independently.
 
 Adopt Plan requires every section marked `requiredForAdoption` to be complete, all material calculation snapshots to match the current plan input fingerprint, and all live feasibility gaps to have current acknowledgments where acknowledgment is required.
+
+
+## Campaign budget proposal (per scenario)
+
+When Program & Budget channel allocations and unit costs are entered, Wings builds a **campaign budget proposal** for the active scenario (CONSERVATIVE / BASE / EXPANDED):
+
+- Modeled program cost = Σ (allocated completed shifts × cost per completed shift)
+- Available budget / remaining / gap when a budget ceiling is entered
+- Cost to close capacity gaps (additional shifts × unit cost)
+- Required program cost when required shifts are derived from the vote need
+
+Missing unit costs are reported as NO DATA. Wings does not invent costs. Empirical defaults belong in private calibration profiles, not this repository.

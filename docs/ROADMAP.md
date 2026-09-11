@@ -37,6 +37,10 @@ Assume **one draft per scenario** ([decision memo](./decisions/MULTI_DRAFT_PER_C
 
 ## Next (after Program & Budget v1)
 
+### Campaign dollars
+
+- [x] Campaign budget proposal per scenario (modeled cost, remaining, gap, capacity-close cost)
+
 ### Product decisions (short)
 
 - [ ] Remedy payload contract for COST and REACHABILITY in UI

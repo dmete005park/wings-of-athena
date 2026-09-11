@@ -6,6 +6,10 @@ import {
   VOTE_COMPOSITION_FORMULA,
   VOTE_COMPOSITION_METRIC,
 } from './voteComposition';
+import {
+  BUDGET_PROPOSAL_FORMULA,
+  BUDGET_PROPOSAL_METRIC,
+} from './programBudget';
 
 export interface MetricDefinition {
   key: string;
@@ -43,7 +47,13 @@ export const METRIC_REGISTRY: readonly MetricDefinition[] = [
   { key: REQUIRED_PROGRAM_METRIC.SHIFTS, displayName: 'Required Shifts for Vote Goal', unit: 'shifts', formulaId: REQUIRED_PROGRAM_FORMULA.SHIFTS, rounding: 'CEIL_REQUIRED_WORK', overridePolicy: 'NO_OVERRIDE' },
   { key: REQUIRED_PROGRAM_METRIC.BREAK_EVEN_CONTACT_RATE, displayName: 'Break-even Contact Rate', unit: 'probability', formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_CONTACT_RATE, rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' },
   { key: REQUIRED_PROGRAM_METRIC.BREAK_EVEN_ATTEMPTS_PER_SHIFT, displayName: 'Break-even Attempts per Shift', unit: 'attempts/shift', formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_ATTEMPTS_PER_SHIFT, rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' },
-  { key: REQUIRED_PROGRAM_METRIC.BREAK_EVEN_ID_CONVERSION, displayName: 'Break-even ID Conversion Rate', unit: 'probability', formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_ID_CONVERSION, rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' }
+  { key: REQUIRED_PROGRAM_METRIC.BREAK_EVEN_ID_CONVERSION, displayName: 'Break-even ID Conversion Rate', unit: 'probability', formulaId: REQUIRED_PROGRAM_FORMULA.BREAK_EVEN_ID_CONVERSION, rounding: 'NONE', overridePolicy: 'NO_OVERRIDE' },
+  { key: BUDGET_PROPOSAL_METRIC.MODELED_PROGRAM_COST, displayName: 'Modeled Program Cost', unit: 'USD', formulaId: BUDGET_PROPOSAL_FORMULA.MODELED_PROGRAM_COST, rounding: 'WHOLE_DISPLAY', overridePolicy: 'NO_OVERRIDE' },
+  { key: BUDGET_PROPOSAL_METRIC.AVAILABLE, displayName: 'Available Budget', unit: 'USD', rounding: 'WHOLE_DISPLAY', overridePolicy: 'ALLOW_OVERRIDE' },
+  { key: BUDGET_PROPOSAL_METRIC.REMAINING, displayName: 'Remaining Budget', unit: 'USD', formulaId: BUDGET_PROPOSAL_FORMULA.MODELED_PROGRAM_COST, rounding: 'WHOLE_DISPLAY', overridePolicy: 'NO_OVERRIDE' },
+  { key: BUDGET_PROPOSAL_METRIC.GAP, displayName: 'Budget Gap', unit: 'USD', formulaId: BUDGET_PROPOSAL_FORMULA.MODELED_PROGRAM_COST, rounding: 'WHOLE_DISPLAY', overridePolicy: 'NO_OVERRIDE' },
+  { key: BUDGET_PROPOSAL_METRIC.CAPACITY_CLOSE_COST, displayName: 'Cost to Close Capacity Gaps', unit: 'USD', formulaId: BUDGET_PROPOSAL_FORMULA.CAPACITY_CLOSE_COST, rounding: 'WHOLE_DISPLAY', overridePolicy: 'NO_OVERRIDE' },
+  { key: BUDGET_PROPOSAL_METRIC.REQUIRED_PROGRAM_COST, displayName: 'Required Program Cost', unit: 'USD', formulaId: BUDGET_PROPOSAL_FORMULA.REQUIRED_PROGRAM_COST, rounding: 'WHOLE_DISPLAY', overridePolicy: 'NO_OVERRIDE' }
 ] as const;
 
 export function metricDefinition(key: string): MetricDefinition | undefined {
