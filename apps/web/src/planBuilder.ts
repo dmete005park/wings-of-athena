@@ -7,8 +7,11 @@ import {
   calculateCapacity,
   calculateExpectedElectorate,
   calculateOutreachPlan,
+  calculateCampaignBudgetProposal,
   calculateProgramBudgetFeasibility,
   calculateRaceThreshold,
+  BUDGET_PROPOSAL_FORMULA,
+  BUDGET_PROPOSAL_METRIC,
   calculateRequiredProgram,
   calculateSupportIdObjective,
   computeVoteComposition,
@@ -731,27 +734,6 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
       });
     }
 
-    const availableBudget = draft.programBudget.availableBudget;
-    if (nonNegative(availableBudget)) {
-      const modeledCost = enabledChannels.reduce((total, [, channel]) => {
-        const cost = channel.costPerCompletedShift;
-        const shifts = channel.allocatedCompletedShifts;
-        if (cost === null || shifts === null || !Number.isFinite(cost) || !Number.isFinite(shifts) || cost < 0 || shifts < 0) return total;
-        return total + cost * shifts;
-      }, 0);
-      if (modeledCost > availableBudget!) {
-        feasibilityGaps.push({
-          gapId: 'cost:program',
-          constraintType: 'COST',
-          strategicMetricKey: 'budget.available',
-          strategicValue: availableBudget!,
-          operationalMetricKey: 'budget.modeled_program_cost',
-          operationalValue: modeledCost,
-          gap: modeledCost - availableBudget!,
-          requiresAcknowledgment: true,
-        });
-      }
-    }
   }
 
   const enabledObjectiveIds = draft.programBudget.supportIdEnabled ? ['SUPPORT_ID'] : [];
@@ -1012,7 +994,122 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
     }
   }
 
-  const build = await buildPlanVersionRecord({
+  const budgetProposalInputChannels = enabledChannels.map(([channelId, channel]) => {
+    const feasibilityChannel = programFeasibility?.value?.channels.find((item) => item.channelId === channelId);
+    const outreach = outreachChains.find((item) => item.channelId === channelId);
+    return {
+      channelId,
+      allocatedCompletedShifts: channel.allocatedCompletedShifts ?? 0,
+      ...(nonNegative(channel.costPerCompletedShift)
+        ? { costPerCompletedShift: channel.costPerCompletedShift! }
+        : {}),
+      ...(feasibilityChannel
+        ? { additionalCompletedShiftsRequired: feasibilityChannel.additionalCompletedShiftsRequired }
+        : {}),
+      ...(outreach?.requiredShifts != null
+        ? { requiredCompletedShifts: outreach.requiredShifts }
+        : {}),
+    };
+  });
+
+  const budgetProposal = enabledChannels.length > 0
+    ? calculateCampaignBudgetProposal({
+        channels: budgetProposalInputChannels,
+        ...(nonNegative(draft.programBudget.availableBudget)
+          ? { availableBudget: draft.programBudget.availableBudget! }
+          : {}),
+      })
+    : null;
+
+  if (budgetProposal?.value?.budgetGap != null && budgetProposal.value.budgetGap > 0
+      && budgetProposal.value.availableBudget != null
+      && budgetProposal.value.modeledProgramCost != null) {
+    feasibilityGaps.push({
+      gapId: 'cost:program',
+      constraintType: 'COST',
+      strategicMetricKey: BUDGET_PROPOSAL_METRIC.AVAILABLE,
+      strategicValue: budgetProposal.value.availableBudget,
+      operationalMetricKey: BUDGET_PROPOSAL_METRIC.MODELED_PROGRAM_COST,
+      operationalValue: budgetProposal.value.modeledProgramCost,
+      gap: budgetProposal.value.budgetGap,
+      requiresAcknowledgment: true,
+    });
+  }
+
+  if (budgetProposal?.value?.modeledProgramCost != null) {
+    calculations.push({
+      metricKey: BUDGET_PROPOSAL_METRIC.MODELED_PROGRAM_COST,
+      modeledValue: budgetProposal.value.modeledProgramCost,
+      adoptedValue: budgetProposal.value.modeledProgramCost,
+      formulaId: BUDGET_PROPOSAL_FORMULA.MODELED_PROGRAM_COST,
+      inputs: {
+        channelLines: budgetProposal.value.channelLines.map((line) => ({
+          channelId: line.channelId,
+          allocatedCompletedShifts: line.allocatedCompletedShifts,
+          costPerCompletedShift: line.costPerCompletedShift,
+          allocatedCost: line.allocatedCost,
+        })),
+      },
+      evidenceRefs: [],
+    });
+  }
+  if (budgetProposal?.value?.availableBudget != null) {
+    calculations.push({
+      metricKey: BUDGET_PROPOSAL_METRIC.AVAILABLE,
+      modeledValue: budgetProposal.value.availableBudget,
+      adoptedValue: budgetProposal.value.availableBudget,
+      formulaId: BUDGET_PROPOSAL_FORMULA.MODELED_PROGRAM_COST,
+      inputs: { availableBudget: budgetProposal.value.availableBudget },
+      evidenceRefs: [],
+    });
+  }
+  if (budgetProposal?.value?.remainingBudget != null) {
+    calculations.push({
+      metricKey: BUDGET_PROPOSAL_METRIC.REMAINING,
+      modeledValue: budgetProposal.value.remainingBudget,
+      adoptedValue: budgetProposal.value.remainingBudget,
+      formulaId: BUDGET_PROPOSAL_FORMULA.MODELED_PROGRAM_COST,
+      inputs: {
+        availableBudget: budgetProposal.value.availableBudget,
+        modeledProgramCost: budgetProposal.value.modeledProgramCost,
+      },
+      evidenceRefs: [],
+    });
+  }
+  if (budgetProposal?.value?.capacityCloseCost != null) {
+    calculations.push({
+      metricKey: BUDGET_PROPOSAL_METRIC.CAPACITY_CLOSE_COST,
+      modeledValue: budgetProposal.value.capacityCloseCost,
+      adoptedValue: budgetProposal.value.capacityCloseCost,
+      formulaId: BUDGET_PROPOSAL_FORMULA.CAPACITY_CLOSE_COST,
+      inputs: {
+        channelLines: budgetProposal.value.channelLines.map((line) => ({
+          channelId: line.channelId,
+          additionalCompletedShiftsRequired: line.additionalCompletedShiftsRequired,
+          capacityCloseCost: line.capacityCloseCost,
+        })),
+      },
+      evidenceRefs: [],
+    });
+  }
+  if (budgetProposal?.value?.requiredProgramCost != null) {
+    calculations.push({
+      metricKey: BUDGET_PROPOSAL_METRIC.REQUIRED_PROGRAM_COST,
+      modeledValue: budgetProposal.value.requiredProgramCost,
+      adoptedValue: budgetProposal.value.requiredProgramCost,
+      formulaId: BUDGET_PROPOSAL_FORMULA.REQUIRED_PROGRAM_COST,
+      inputs: {
+        channelLines: budgetProposal.value.channelLines.map((line) => ({
+          channelId: line.channelId,
+          requiredCompletedShifts: line.requiredCompletedShifts,
+          requiredProgramCost: line.requiredProgramCost,
+        })),
+      },
+      evidenceRefs: [],
+    });
+  }
+
+    const build = await buildPlanVersionRecord({
     planVersionId: identity.planVersionId,
     campaignId: identity.campaignId,
     parentPlanVersionId: null,
@@ -1077,9 +1174,10 @@ export async function buildScenarioPlan(draft: ScenarioDraft, identity: BuildIde
     ...(universe?.issues ?? []),
     ...(programFeasibility?.issues ?? []),
     ...outreachIssues,
+    ...(budgetProposal?.issues ?? []),
   ];
 
-  return { build, electorate, threshold, voteGoal, voteComposition, universe, programFeasibility, feasibilityGaps, outreachChains, issues };
+  return { build, electorate, threshold, voteGoal, voteComposition, universe, programFeasibility, feasibilityGaps, outreachChains, budgetProposal, issues };
 }
 
 export async function createAcknowledgment(

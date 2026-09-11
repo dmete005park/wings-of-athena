@@ -256,3 +256,27 @@ summary { cursor: pointer; font-weight: 500; }
   .engine-badge, .quiet { white-space: normal; }
   .flow-nav a, .scenario-actions button { min-height: 44px; display: inline-flex; align-items: center; }
 }
+
+
+.budget-proposal { margin-top: 16px; }
+.budget-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.budget-summary.secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.budget-summary article {
+  background: #f7f4ec;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.budget-summary p { margin: 0; color: #5c584f; font-size: 0.85rem; }
+.budget-summary strong { display: block; margin-top: 4px; font-size: 1.15rem; }
+.budget-missing { color: #8a4b16; margin: 0 0 12px; }
+.budget-lines { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.budget-lines th, .budget-lines td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #ebeae4; }
+.budget-lines th { color: #5c584f; font-weight: 600; }
+@media (max-width: 720px) {
+  .budget-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
